@@ -29,17 +29,17 @@ get-secret:
 # Phase 2: Bootstrap tenants, resource servers, roles
 # ──────────────────────────────────────────────
 bootstrap:
-	$(eval DIRECT_AUTH_SECRET ?= $(shell docker compose exec thunderid cat config/secrets/direct_auth_secret 2>/dev/null))
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
 	cd bootstrap && pip install -r requirements.txt -q && \
-		DIRECT_AUTH_SECRET="$(DIRECT_AUTH_SECRET)" python bootstrap.py
+		ADMIN_PASSWORD="$(ADMIN_PASSWORD)" python3 bootstrap.py
 
 # ──────────────────────────────────────────────
 # Phase 2b: Seed users into tenants
 # ──────────────────────────────────────────────
 seed:
-	$(eval DIRECT_AUTH_SECRET ?= $(shell docker compose exec thunderid cat config/secrets/direct_auth_secret 2>/dev/null))
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
 	cd bootstrap && \
-		DIRECT_AUTH_SECRET="$(DIRECT_AUTH_SECRET)" python seed_users.py
+		ADMIN_PASSWORD="$(ADMIN_PASSWORD)" python3 seed_users.py
 
 # ──────────────────────────────────────────────
 # Testing
@@ -51,7 +51,8 @@ test-phase1:
 	bash scripts/test-phase1.sh
 
 test-phase2:
-	bash scripts/test-phase2.sh
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	ADMIN_PASSWORD="$(ADMIN_PASSWORD)" bash scripts/test-phase2.sh
 
 test-phase3:
 	bash scripts/test-phase3.sh

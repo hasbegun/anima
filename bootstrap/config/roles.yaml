@@ -1,0 +1,52 @@
+roles:
+  # Monitoring API roles
+  - name: "monitoring-admin"
+    tenant: "monitoring-api"
+    resource_server: "https://monitoring-api.internal"
+    scopes:
+      - "alerts:read"
+      - "alerts:write"
+      - "alerts:delete"
+      - "dashboards:read"
+      - "dashboards:write"
+      - "settings:manage"
+
+  - name: "monitoring-operator"
+    tenant: "monitoring-api"
+    resource_server: "https://monitoring-api.internal"
+    scopes:
+      - "alerts:read"
+      - "alerts:write"
+      - "dashboards:read"
+
+  - name: "monitoring-viewer"
+    tenant: "monitoring-api"
+    resource_server: "https://monitoring-api.internal"
+    scopes:
+      - "alerts:read"
+      - "dashboards:read"
+
+  # Data Pipeline roles
+  - name: "pipeline-admin"
+    tenant: "data-pipeline"
+    resource_server: "https://data-pipeline.internal"
+    scopes:
+      - "pipelines:read"
+      - "pipelines:run"
+      - "pipelines:manage"
+      - "data:read"
+
+  - name: "pipeline-engineer"
+    tenant: "data-pipeline"
+    resource_server: "https://data-pipeline.internal"
+    scopes:
+      - "pipelines:read"
+      - "pipelines:run"
+      - "data:read"
+
+  - name: "pipeline-readonly"
+    tenant: "data-pipeline"
+    resource_server: "https://data-pipeline.internal"
+    scopes:
+      - "pipelines:read"
+      - "data:read"

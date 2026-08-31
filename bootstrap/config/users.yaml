@@ -1,0 +1,21 @@
+user_assignments:
+  # Assign users to tenants with roles.
+  # Users must already exist in ThunderID (registered via Gate).
+  - email: "sysadmin@company.com"
+    tenants:
+      - tenant: "monitoring-api"
+        roles: ["monitoring-admin"]
+      - tenant: "data-pipeline"
+        roles: ["pipeline-admin"]
+
+  - email: "alice@company.com"
+    tenants:
+      - tenant: "monitoring-api"
+        roles: ["monitoring-operator"]
+      - tenant: "data-pipeline"
+        roles: ["pipeline-engineer"]
+
+  - email: "bob@company.com"
+    tenants:
+      - tenant: "monitoring-api"
+        roles: ["monitoring-viewer"]

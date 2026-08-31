@@ -1,0 +1,12 @@
+tenants:
+  - handle: "monitoring-api"
+    name: "Monitoring API"
+    description: "Internal monitoring and alerting service"
+
+  - handle: "data-pipeline"
+    name: "Data Pipeline"
+    description: "ETL and data processing service"
+
+  - handle: "deploy-tool"
+    name: "Deployment Tool"
+    description: "Internal deployment and release management"
