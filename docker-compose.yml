@@ -1,0 +1,54 @@
+services:
+  mailslurper:
+    image: oryd/mailslurper:latest-smtps
+    ports:
+      - "4436:4436"   # Web UI (dev only)
+      - "1025:1025"   # SMTP (SSL)
+    restart: unless-stopped
+
+  thunderid-setup:
+    image: ghcr.io/thunder-id/thunderid:1.0.1
+    command: ./setup.sh --verbose
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./thunderid/deployment.yaml:/opt/thunderid/deployment.yaml
+      - thunderid-certs:/opt/thunderid/config/certs
+      - thunderid-secrets:/opt/thunderid/config/secrets
+      - thunderid-db:/opt/thunderid/database
+    restart: "no"
+
+  thunderid:
+    image: ghcr.io/thunder-id/thunderid:1.0.1
+    depends_on:
+      thunderid-setup:
+        condition: service_completed_successfully
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./thunderid/deployment.yaml:/opt/thunderid/deployment.yaml
+      - thunderid-certs:/opt/thunderid/config/certs
+      - thunderid-secrets:/opt/thunderid/config/secrets
+      - thunderid-db:/opt/thunderid/database
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1",
+             "--spider", "--no-check-certificate",
+             "https://localhost:8090/.well-known/openid-configuration"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+
+volumes:
+  thunderid-certs:     # TLS certs + JWT signing keys + crypto key
+  thunderid-secrets:   # Direct Auth Secret
+  thunderid-db:        # SQLite databases (config, entity, runtime_transient, runtime_persistent)

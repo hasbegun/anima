@@ -1,0 +1,33 @@
+# Environment variables (contain secrets)
+.env
+
+# Setup output (contains admin password + Direct Auth Secret)
+setup-output.txt
+
+# Database backups
+backups/*.tar.gz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+
+# Go
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
