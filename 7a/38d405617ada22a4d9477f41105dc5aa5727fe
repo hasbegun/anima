@@ -1,0 +1,29 @@
+.gitignore
+  a3914e1e29abc6d5 10-12
+scripts/test-phase3.sh
+  a3914e1e29abc6d5 1-215
+bootstrap/config/agents.yaml
+  a3914e1e29abc6d5 1-47
+bootstrap/bootstrap.py
+  a3914e1e29abc6d5 3,16,18-22,32,242-383,412-415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7a38d405617ada22a4d9477f41105dc5aa5727fe",
+  "prompts": {
+    "a3914e1e29abc6d5": {
+      "agent_id": {
+        "tool": "windsurf",
+        "id": "verdant-antimatter",
+        "model": "unknown"
+      },
+      "human_author": "Inho Choi",
+      "messages": [],
+      "total_additions": 429,
+      "total_deletions": 13,
+      "accepted_lines": 420,
+      "overriden_lines": 0
+    }
+  }
+}
