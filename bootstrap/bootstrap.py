@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bootstrap ThunderID with tenants, resource servers, and roles.
+Bootstrap ThunderID with tenants, resource servers, roles, and agents.
 
 Run once after ThunderID is up:
 
@@ -13,9 +13,13 @@ then uses the management APIs to create:
   2. Resource servers with resources       -- via POST /import
   3. Actions on each resource (scopes)     -- via REST API
   4. Roles with permission assignments     -- via POST /import
+  5. AI agents with OAuth2 credentials     -- via REST API
 
-Re-running is safe: imports use upsert, and actions/roles are
-skipped when they already exist.
+Re-running is safe: imports use upsert, and actions/roles/agents
+are skipped when they already exist.
+
+Agent client secrets are written to ``config/agent-secrets.json``
+on first creation. This file is gitignored.
 
 Environment variables
 ---------------------
@@ -25,6 +29,7 @@ ADMIN_PASSWORD      Admin password      (required)
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -234,6 +239,148 @@ def create_roles(client: httpx.Client, token: str) -> bool:
     return ok
 
 
+# -- Agents -----------------------------------------------------------------
+
+SECRETS_FILE = CONFIG_DIR / "agent-secrets.json"
+
+
+def _load_secrets() -> dict:
+    if SECRETS_FILE.exists():
+        with open(SECRETS_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def _save_secrets(secrets: dict) -> None:
+    with open(SECRETS_FILE, "w") as f:
+        json.dump(secrets, f, indent=2)
+        f.write("\n")
+
+
+def create_agents(client: httpx.Client, token: str) -> bool:
+    """Register AI agents and assign roles.
+
+    Each agent gets an OAuth2 ``clientId`` + ``clientSecret``.  Secrets
+    are persisted to ``config/agent-secrets.json`` (gitignored) so they
+    survive re-runs.  Existing agents (matched by name) are skipped.
+    """
+    config = _load_yaml("agents.yaml")
+    headers = {"Authorization": f"Bearer {token}"}
+    ok = True
+
+    # Lookup maps
+    ous = _get_map(client, token, "organization-units", "handle", "organizationUnits")
+    default_ou_id = ous["default"]["id"]
+
+    roles_r = client.get(f"{THUNDERID_URL}/roles", headers=headers)
+    roles_by_key: dict[tuple[str, str], str] = {}
+    for role in roles_r.json().get("roles", []):
+        roles_by_key[(role.get("ouHandle", ""), role["name"])] = role["id"]
+
+    # Get existing agents to detect duplicates
+    agents_r = client.get(f"{THUNDERID_URL}/agents", headers=headers)
+    existing: dict[str, dict] = {
+        a["name"]: a for a in agents_r.json().get("agents", [])
+    }
+
+    secrets = _load_secrets()
+
+    for agent_cfg in config["agents"]:
+        name = agent_cfg["name"]
+
+        # Skip if already exists
+        if name in existing:
+            print(f"  - agent: {name} (exists)")
+            continue
+
+        # Build inbound auth config based on mode
+        mode = agent_cfg.get("mode", "autonomous")
+        scopes = agent_cfg.get("scopes", [])
+
+        if mode == "autonomous":
+            inbound = [{
+                "type": "oauth2",
+                "config": {
+                    "grantTypes": ["client_credentials"],
+                    "tokenEndpointAuthMethod": "client_secret_basic",
+                    "scopes": scopes,
+                },
+            }]
+        elif mode == "delegated":
+            inbound = [{
+                "type": "oauth2",
+                "config": {
+                    "grantTypes": ["client_credentials", "authorization_code"],
+                    "responseTypes": ["code"],
+                    "tokenEndpointAuthMethod": "client_secret_basic",
+                    "scopes": scopes,
+                    "redirectUris": agent_cfg.get("redirect_uris", []),
+                    "pkceRequired": True,
+                },
+            }]
+        else:
+            print(f"  ! agent: {name} unknown mode '{mode}'")
+            ok = False
+            continue
+
+        body: dict = {
+            "name": name,
+            "type": agent_cfg.get("type", "default"),
+            "description": agent_cfg.get("description", ""),
+            "ouId": default_ou_id,
+            "inboundAuthConfig": inbound,
+        }
+        if agent_cfg.get("attributes"):
+            body["attributes"] = agent_cfg["attributes"]
+
+        r = client.post(f"{THUNDERID_URL}/agents", headers=headers, json=body)
+        if r.status_code not in (200, 201):
+            code = r.json().get("code", "")
+            msg = r.json().get("message", r.text[:200])
+            print(f"  ! agent: {name} FAILED [{code}] {msg}")
+            ok = False
+            continue
+
+        data = r.json()
+        agent_id = data["id"]
+        oauth_cfg = data.get("inboundAuthConfig", [{}])[0].get("config", {})
+        client_id = oauth_cfg.get("clientId", "")
+        client_secret = oauth_cfg.get("clientSecret", "")
+
+        print(f"  + agent: {name} (clientId={client_id})")
+
+        # Save secret
+        secrets[name] = {
+            "agentId": agent_id,
+            "clientId": client_id,
+            "clientSecret": client_secret,
+            "mode": mode,
+        }
+
+        # Assign roles
+        for role_name in agent_cfg.get("roles", []):
+            tenant = agent_cfg.get("tenant", "default")
+            role_id = roles_by_key.get((tenant, role_name))
+            if not role_id:
+                print(f"    ! role '{role_name}' in '{tenant}' not found")
+                ok = False
+                continue
+            r2 = client.post(
+                f"{THUNDERID_URL}/roles/{role_id}/assignments/add",
+                headers=headers,
+                json={"assignments": [{"type": "agent", "id": agent_id}]},
+            )
+            if r2.status_code == 204:
+                print(f"    + role: {role_name} @ {tenant}")
+            else:
+                msg = r2.json().get("message", r2.text[:100])
+                print(f"    ! role: {role_name} @ {tenant} FAILED {msg}")
+                ok = False
+
+    _save_secrets(secrets)
+    return ok
+
+
 # -- Main -------------------------------------------------------------------
 
 def main() -> int:
@@ -260,6 +407,10 @@ def main() -> int:
 
     print("\n--- Roles ---")
     if not create_roles(client, token):
+        all_ok = False
+
+    print("\n--- Agents ---")
+    if not create_agents(client, token):
         all_ok = False
 
     client.close()

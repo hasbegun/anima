@@ -1,0 +1,47 @@
+agents:
+  # Autonomous agents (act on their own via client_credentials)
+  - name: "alert-cleanup-agent"
+    tenant: "monitoring-api"
+    type: "default"
+    mode: "autonomous"
+    description: "Cleans up expired alerts nightly"
+    attributes:
+      model: "gpt-4"
+      modelProvider: "openai"
+      function: "task-automation"
+    roles:
+      - "monitoring-operator"
+    scopes:
+      - "alerts:read"
+      - "alerts:write"
+
+  - name: "pipeline-scheduler-agent"
+    tenant: "data-pipeline"
+    type: "default"
+    mode: "autonomous"
+    description: "Schedules and triggers data pipeline runs"
+    attributes:
+      model: "claude-3-5-sonnet"
+      modelProvider: "anthropic"
+      function: "task-automation"
+    roles:
+      - "pipeline-engineer"
+    scopes:
+      - "pipelines:read"
+      - "pipelines:run"
+
+  # Delegated agent (acts on behalf of users via authorization_code + PKCE)
+  - name: "monitoring-assistant"
+    tenant: "monitoring-api"
+    type: "default"
+    mode: "delegated"
+    description: "AI assistant that helps users investigate alerts"
+    attributes:
+      model: "gpt-4"
+      modelProvider: "openai"
+      function: "assistant"
+    redirect_uris:
+      - "http://localhost:3000/callback"
+    scopes:
+      - "alerts:read"
+      - "dashboards:read"
