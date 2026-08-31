@@ -1,0 +1,41 @@
+docker-compose.yml
+  a3914e1e29abc6d5 1-54
+scripts/test-phase1.sh
+  a3914e1e29abc6d5 1-81
+scripts/test-api.sh
+  a3914e1e29abc6d5 1-30
+.env.example
+  a3914e1e29abc6d5 1-10
+thunderid/deployment.yaml
+  a3914e1e29abc6d5 1-31
+Makefile
+  a3914e1e29abc6d5 1-108
+scripts/test-all.sh
+  a3914e1e29abc6d5 1-46
+master-plan.md
+  a3914e1e29abc6d5 1-2784
+.gitignore
+  a3914e1e29abc6d5 1-33
+master-plan-kratos-v1.md
+  a3914e1e29abc6d5 1-2569
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "14d8efe2bc1d5011f0b8d65da8ed6dd326168678",
+  "prompts": {
+    "a3914e1e29abc6d5": {
+      "agent_id": {
+        "tool": "windsurf",
+        "id": "verdant-antimatter",
+        "model": "unknown"
+      },
+      "human_author": "Inho Choi",
+      "messages": [],
+      "total_additions": 5760,
+      "total_deletions": 14,
+      "accepted_lines": 5746,
+      "overriden_lines": 0
+    }
+  }
+}
