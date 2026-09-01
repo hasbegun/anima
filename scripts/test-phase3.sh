@@ -4,6 +4,7 @@
 set -euo pipefail
 
 BASE_URL="${THUNDERID_URL:-https://localhost:8090}"
+PUBLIC_URL="${THUNDERID_PUBLIC_URL:-https://localhost:8090}"
 CURL="curl -sf --insecure --max-time 10"
 
 PASS=0
@@ -41,6 +42,7 @@ print(get_admin_token(
     os.getenv('THUNDERID_URL', 'https://localhost:8090'),
     'admin',
     os.getenv('ADMIN_PASSWORD', ''),
+    public_url=os.getenv('THUNDERID_PUBLIC_URL', 'https://localhost:8090'),
 ))
 ")
 AUTH="Authorization: Bearer $TOKEN"
@@ -49,7 +51,7 @@ AUTH="Authorization: Bearer $TOKEN"
 agent_creds() {
     local agent_name="$1"
     python3 -c "
-import json, sys
+import json
 with open('$SECRETS_FILE') as f:
     s = json.load(f)
 a = s['$agent_name']
@@ -105,7 +107,6 @@ for name in ['alert-cleanup-agent', 'pipeline-scheduler-agent', 'monitoring-assi
 
 # ----- Token via client_credentials -----
 
-# Read alert-cleanup-agent creds
 CREDS=($(agent_creds "alert-cleanup-agent"))
 CLEANUP_CLIENT_ID="${CREDS[0]}"
 CLEANUP_CLIENT_SECRET="${CREDS[1]}"
@@ -204,7 +205,7 @@ assert 'access_token' in d, 'no access_token'
 # ----- Idempotency -----
 
 run_test "3.11 Bootstrap is idempotent with agents" \
-    bash -c "cd '$PROJECT_DIR/bootstrap' && ADMIN_PASSWORD='${ADMIN_PASSWORD}' python3 bootstrap.py > /dev/null 2>&1"
+    bash -c "cd '$PROJECT_DIR/bootstrap' && python3 bootstrap.py > /dev/null 2>&1"
 
 echo ""
 echo "--- Results: $PASS/$TOTAL passed, $FAIL failed ---"

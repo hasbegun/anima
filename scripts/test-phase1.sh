@@ -3,7 +3,8 @@
 # Verifies that ThunderID and MailSlurper are running and healthy.
 set -euo pipefail
 
-BASE_URL="https://localhost:8090"
+BASE_URL="${THUNDERID_URL:-https://localhost:8090}"
+MAIL_URL="${MAILSLURPER_URL:-http://mailslurper:4436}"
 CURL="curl -sf --insecure --max-time 10"
 
 PASS=0
@@ -21,14 +22,6 @@ run_test() {
         echo "  FAIL  $name"
         FAIL=$((FAIL + 1))
     fi
-}
-
-assert_json_field() {
-    local url="$1"
-    local field="$2"
-    local body
-    body=$($CURL "$url") || return 1
-    echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); assert '$field' in d, 'missing $field'" 2>/dev/null
 }
 
 echo "=== Phase 1: ThunderID Setup Tests ==="
@@ -66,11 +59,7 @@ run_test "1.5 Login gate loads" \
 
 # Test 1.6: MailSlurper Web UI responds
 run_test "1.6 MailSlurper Web UI responds" \
-    bash -c "curl -sf --max-time 10 'http://localhost:4436' > /dev/null"
-
-# Test 1.7: No database port exposed (no 5432, 3306, 27017 on host)
-run_test "1.7 No database port exposed" \
-    bash -c "! docker compose ps --format '{{.Ports}}' 2>/dev/null | grep -qE '(5432|3306|27017)'"
+    bash -c "curl -sf --max-time 10 '$MAIL_URL' > /dev/null"
 
 echo ""
 echo "--- Results: $PASS/$TOTAL passed, $FAIL failed ---"

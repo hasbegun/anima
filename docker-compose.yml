@@ -41,6 +41,25 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  toolbox:
+    build:
+      context: ./bootstrap
+      dockerfile: Dockerfile
+    depends_on:
+      thunderid:
+        condition: service_healthy
+    environment:
+      THUNDERID_URL: https://thunderid:8090
+      THUNDERID_PUBLIC_URL: https://localhost:8090
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./bootstrap:/app/bootstrap
+      - ./scripts:/app/scripts
+    working_dir: /app
+    profiles: ["tools"]
+    restart: "no"
+
 networks:
   default:
     driver: bridge

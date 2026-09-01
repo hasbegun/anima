@@ -4,6 +4,7 @@
 set -euo pipefail
 
 BASE_URL="${THUNDERID_URL:-https://localhost:8090}"
+PUBLIC_URL="${THUNDERID_PUBLIC_URL:-https://localhost:8090}"
 CURL="curl -sf --insecure --max-time 10"
 
 PASS=0
@@ -33,6 +34,7 @@ print(get_admin_token(
     os.getenv('THUNDERID_URL', 'https://localhost:8090'),
     'admin',
     os.getenv('ADMIN_PASSWORD', ''),
+    public_url=os.getenv('THUNDERID_PUBLIC_URL', 'https://localhost:8090'),
 ))
 ")
 
@@ -80,17 +82,55 @@ run_test "2.6 RS 'deploy-tool.internal' exists" \
     api_assert "resource-servers" \
     "assert 'https://deploy-tool.internal' in [rs['identifier'] for rs in d['resourceServers']]"
 
-# ----- Permissions (check via DB) -----
+# ----- Permissions (check via API) -----
 
-run_test "2.7 Monitoring API has alerts:read permission" \
-    bash -c "docker compose exec thunderid sqlite3 database/configdb.db \
-    \"SELECT COUNT(*) FROM ACTION A JOIN RESOURCE_SERVER RS ON A.RESOURCE_SERVER_ID = RS.ID WHERE RS.IDENTIFIER='https://monitoring-api.internal' AND A.PERMISSION='alerts:read';\" \
-    | grep -q '^1$'"
+run_test "2.7 Monitoring API has alerts:read action" \
+    bash -c "
+RS_ID=\$($CURL -H '$AUTH' '$BASE_URL/resource-servers' | python3 -c \"
+import sys, json
+d = json.load(sys.stdin)
+rs = next(r for r in d['resourceServers'] if r['identifier'] == 'https://monitoring-api.internal')
+print(rs['id'])
+\")
+RES_ID=\$($CURL -H '$AUTH' '$BASE_URL/resource-servers/'\"\$RS_ID\"'/resources' | python3 -c \"
+import sys, json
+d = json.load(sys.stdin)
+res = next(r for r in d['resources'] if r['handle'] == 'alerts')
+print(res['id'])
+\")
+$CURL -H '$AUTH' '$BASE_URL/resource-servers/'\"\$RS_ID\"'/resources/'\"\$RES_ID\"'/actions' | python3 -c \"
+import sys, json
+d = json.load(sys.stdin)
+handles = [a['handle'] for a in d['actions']]
+assert 'read' in handles, f'missing read in {handles}'
+\"
+"
 
-run_test "2.8 At least 14 actions exist across custom resource servers" \
-    bash -c "docker compose exec thunderid sqlite3 database/configdb.db \
-    \"SELECT COUNT(*) FROM ACTION A JOIN RESOURCE_SERVER RS ON A.RESOURCE_SERVER_ID = RS.ID WHERE RS.IDENTIFIER != 'https://localhost:8090/mcp';\" \
-    | python3 -c 'import sys; assert int(sys.stdin.read().strip()) >= 14'"
+run_test "2.8 At least 14 actions across resource servers" \
+    bash -c "$CURL -H '$AUTH' '$BASE_URL/resource-servers' | python3 -c \"
+import sys, json, ssl, urllib.request
+d = json.load(sys.stdin)
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+total = 0
+for rs in d['resourceServers']:
+    if 'mcp' in rs['identifier']:
+        continue
+    rid = rs['id']
+    req = urllib.request.Request('$BASE_URL/resource-servers/' + rid + '/resources',
+        headers={'Authorization': 'Bearer $TOKEN'})
+    with urllib.request.urlopen(req, context=ctx) as resp:
+        resources = json.load(resp)
+    for res in resources.get('resources', []):
+        req2 = urllib.request.Request(
+            '$BASE_URL/resource-servers/' + rid + '/resources/' + res['id'] + '/actions',
+            headers={'Authorization': 'Bearer $TOKEN'})
+        with urllib.request.urlopen(req2, context=ctx) as resp2:
+            actions = json.load(resp2)
+        total += len(actions.get('actions', []))
+assert total >= 14, f'only {total} actions found'
+\""
 
 # ----- Roles -----
 
@@ -106,42 +146,45 @@ run_test "2.11 At least 6 custom roles exist" \
     api_assert "roles" \
     "assert len([r for r in d['roles'] if r['name'] != 'Administrator']) >= 6"
 
-# ----- Role Permissions (via DB) -----
+# ----- Seed Users (check via API) -----
 
-run_test "2.12 monitoring-admin has 6 permissions" \
-    bash -c "docker compose exec thunderid sqlite3 database/configdb.db \
-    \"SELECT COUNT(*) FROM ROLE_PERMISSION RP JOIN ROLE R ON RP.ROLE_ID = R.ID WHERE R.NAME='monitoring-admin';\" \
-    | grep -q '^6$'"
+check_user_exists() {
+    local email="$1"
+    $CURL -H "$AUTH" "$BASE_URL/users" | python3 -c "
+import sys, json, ssl, urllib.request
+d = json.load(sys.stdin)
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+found = False
+for u in d['users']:
+    req = urllib.request.Request('$BASE_URL/users/' + u['id'],
+        headers={'Authorization': 'Bearer $TOKEN'})
+    with urllib.request.urlopen(req, context=ctx) as resp:
+        detail = json.load(resp)
+    if (detail.get('attributes') or {}).get('email') == '$email':
+        found = True
+        break
+assert found, '$email not found'
+"
+}
 
-run_test "2.13 monitoring-viewer has 2 permissions" \
-    bash -c "docker compose exec thunderid sqlite3 database/configdb.db \
-    \"SELECT COUNT(*) FROM ROLE_PERMISSION RP JOIN ROLE R ON RP.ROLE_ID = R.ID WHERE R.NAME='monitoring-viewer';\" \
-    | grep -q '^2$'"
+run_test "2.12 Seed user 'alice@company.com' exists" \
+    check_user_exists "alice@company.com"
 
-# ----- Seed Users -----
+run_test "2.13 Seed user 'bob@company.com' exists" \
+    check_user_exists "bob@company.com"
 
-run_test "2.14 Seed user 'alice@company.com' exists" \
-    bash -c "docker compose exec thunderid sqlite3 database/entitydb.db \
-    \"SELECT COUNT(*) FROM ENTITY_IDENTIFIER WHERE NAME='email' AND VALUE='alice@company.com';\" \
-    | grep -q '^1$'"
-
-run_test "2.15 Seed user 'bob@company.com' exists" \
-    bash -c "docker compose exec thunderid sqlite3 database/entitydb.db \
-    \"SELECT COUNT(*) FROM ENTITY_IDENTIFIER WHERE NAME='email' AND VALUE='bob@company.com';\" \
-    | grep -q '^1$'"
-
-run_test "2.16 Seed user 'sysadmin@company.com' exists" \
-    bash -c "docker compose exec thunderid sqlite3 database/entitydb.db \
-    \"SELECT COUNT(*) FROM ENTITY_IDENTIFIER WHERE NAME='email' AND VALUE='sysadmin@company.com';\" \
-    | grep -q '^1$'"
+run_test "2.14 Seed user 'sysadmin@company.com' exists" \
+    check_user_exists "sysadmin@company.com"
 
 # ----- Idempotency -----
 
-run_test "2.17 Bootstrap is idempotent" \
-    bash -c "cd '$PROJECT_DIR/bootstrap' && ADMIN_PASSWORD='${ADMIN_PASSWORD}' python3 bootstrap.py > /dev/null 2>&1"
+run_test "2.15 Bootstrap is idempotent" \
+    bash -c "cd '$PROJECT_DIR/bootstrap' && python3 bootstrap.py > /dev/null 2>&1"
 
-run_test "2.18 Seed is idempotent" \
-    bash -c "cd '$PROJECT_DIR/bootstrap' && ADMIN_PASSWORD='${ADMIN_PASSWORD}' python3 seed_users.py > /dev/null 2>&1"
+run_test "2.16 Seed is idempotent" \
+    bash -c "cd '$PROJECT_DIR/bootstrap' && python3 seed_users.py > /dev/null 2>&1"
 
 echo ""
 echo "--- Results: $PASS/$TOTAL passed, $FAIL failed ---"

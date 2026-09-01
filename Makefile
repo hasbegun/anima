@@ -1,5 +1,7 @@
 .PHONY: setup get-secret bootstrap seed test test-phase1 test-phase2 test-phase3 test-phase4 \
-       backup restore logs logs-all status stop down clean all
+       backup restore logs logs-all status stop down clean build-toolbox all
+
+TOOLBOX = docker compose run --rm toolbox
 
 # ──────────────────────────────────────────────
 # Phase 1: Start services
@@ -8,8 +10,8 @@ setup:
 	docker compose up thunderid-setup 2>&1 | tee setup-output.txt
 	docker compose up -d thunderid mailslurper
 	@echo "Waiting for ThunderID to be healthy..."
-	@until curl -sf --insecure https://localhost:8090/.well-known/openid-configuration > /dev/null 2>&1; do \
-		sleep 2; echo "  waiting..."; \
+	@until docker inspect auth-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; do \
+		sleep 3; echo "  waiting..."; \
 	done
 	@echo ""
 	@echo "ThunderID is ready!"
@@ -20,56 +22,56 @@ setup:
 	@echo "IMPORTANT: Check setup-output.txt for admin password and Direct Auth Secret"
 
 # ──────────────────────────────────────────────
-# Retrieve Direct Auth Secret (needed for bootstrap)
+# Build the toolbox container (Python + deps)
+# ──────────────────────────────────────────────
+build-toolbox:
+	docker compose build toolbox
+
+# ──────────────────────────────────────────────
+# Retrieve Direct Auth Secret
 # ──────────────────────────────────────────────
 get-secret:
 	@docker compose exec thunderid cat config/secrets/direct_auth_secret
 
 # ──────────────────────────────────────────────
-# Phase 2: Bootstrap tenants, resource servers, roles
+# Phase 2: Bootstrap tenants, resource servers, roles, agents
 # ──────────────────────────────────────────────
 bootstrap:
 	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
-	cd bootstrap && pip install -r requirements.txt -q && \
-		ADMIN_PASSWORD="$(ADMIN_PASSWORD)" python3 bootstrap.py
+	$(TOOLBOX) python3 bootstrap/bootstrap.py
 
 # ──────────────────────────────────────────────
 # Phase 2b: Seed users into tenants
 # ──────────────────────────────────────────────
 seed:
 	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
-	cd bootstrap && \
-		ADMIN_PASSWORD="$(ADMIN_PASSWORD)" python3 seed_users.py
+	$(TOOLBOX) python3 bootstrap/seed_users.py
 
 # ──────────────────────────────────────────────
-# Testing
+# Testing (all run inside the toolbox container)
 # ──────────────────────────────────────────────
 test:
-	bash scripts/test-all.sh
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	$(TOOLBOX) bash scripts/test-all.sh
 
 test-phase1:
-	bash scripts/test-phase1.sh
+	$(TOOLBOX) bash scripts/test-phase1.sh
 
 test-phase2:
 	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
-	ADMIN_PASSWORD="$(ADMIN_PASSWORD)" bash scripts/test-phase2.sh
+	$(TOOLBOX) bash scripts/test-phase2.sh
 
 test-phase3:
-	bash scripts/test-phase3.sh
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	$(TOOLBOX) bash scripts/test-phase3.sh
 
 test-phase4:
-	bash scripts/test-phase4.sh
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	$(TOOLBOX) bash scripts/test-phase4.sh
 
 # ──────────────────────────────────────────────
 # Operations
 # ──────────────────────────────────────────────
-backup:
-	bash scripts/backup-db.sh
-
-restore:
-	@echo "Usage: make restore FILE=backups/thunderid_YYYYMMDD.tar.gz"
-	bash scripts/restore-db.sh $(FILE)
-
 logs:
 	docker compose logs -f thunderid
 
@@ -79,7 +81,8 @@ logs-all:
 status:
 	docker compose ps
 	@echo ""
-	@curl -sf --insecure https://localhost:8090/.well-known/openid-configuration > /dev/null 2>&1 \
+	@docker inspect auth-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null \
+		| grep -q healthy \
 		&& echo "ThunderID is healthy" \
 		|| echo "ThunderID is not responding"
 
@@ -94,16 +97,13 @@ down:
 
 clean:
 	docker compose down -v
-	rm -f setup-output.txt
+	rm -f setup-output.txt bootstrap/config/agent-secrets.json
 	@echo "All volumes removed. Run 'make setup' to start fresh."
 
 # ──────────────────────────────────────────────
 # Full setup (all phases)
 # ──────────────────────────────────────────────
-all: setup bootstrap
+all: setup build-toolbox bootstrap seed
 	@echo ""
 	@echo "Identity service is ready!"
-	@echo "Next steps:"
-	@echo "  1. Register users via Gate: https://localhost:8090/gate"
-	@echo "  2. Seed users: make seed"
-	@echo "  3. Run tests: make test"
+	@echo "  Run tests: ADMIN_PASSWORD=<pw> make test"

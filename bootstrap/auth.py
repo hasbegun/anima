@@ -47,17 +47,26 @@ def get_admin_token(
     base_url: str,
     username: str,
     password: str,
+    *,
+    public_url: str | None = None,
 ) -> str:
     """Run the full OAuth2 flow and return an access token string.
 
     Parameters
     ----------
     base_url:
-        ThunderID origin, e.g. ``https://localhost:8090``.
+        ThunderID origin used for HTTP connections,
+        e.g. ``https://thunderid:8090`` (inside Docker) or
+        ``https://localhost:8090`` (host).
     username:
         Admin username.
     password:
         Admin password.
+    public_url:
+        The externally-registered origin (``public_url`` in
+        deployment.yaml).  Defaults to *base_url*.  Must be set
+        when the connection URL differs from the registered URL
+        (e.g. inside a container).
 
     Returns
     -------
@@ -70,8 +79,9 @@ def get_admin_token(
         If any step of the flow fails.
     """
     base = base_url.rstrip("/")
-    redirect_uri = _REDIRECT.format(base=base)
-    resource = _RESOURCE.format(base=base)
+    pub = (public_url or base_url).rstrip("/")
+    redirect_uri = _REDIRECT.format(base=pub)
+    resource = _RESOURCE.format(base=pub)
     verifier, challenge = _pkce_pair()
 
     client = httpx.Client(verify=False, follow_redirects=False, timeout=30)

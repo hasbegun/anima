@@ -41,6 +41,7 @@ from auth import get_admin_token
 
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 THUNDERID_URL = os.getenv("THUNDERID_URL", "https://localhost:8090")
+THUNDERID_PUBLIC_URL = os.getenv("THUNDERID_PUBLIC_URL", "https://localhost:8090")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
@@ -393,7 +394,8 @@ def main() -> int:
     print(f"  User: {ADMIN_USERNAME}")
     print()
 
-    token = get_admin_token(THUNDERID_URL, ADMIN_USERNAME, ADMIN_PASSWORD)
+    token = get_admin_token(THUNDERID_URL, ADMIN_USERNAME, ADMIN_PASSWORD,
+                            public_url=THUNDERID_PUBLIC_URL)
     client = httpx.Client(verify=False, timeout=30)
     all_ok = True
 
