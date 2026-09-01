@@ -34,6 +34,7 @@ run_phase 1
 run_phase 2
 run_phase 3
 run_phase 4
+run_phase 5
 
 echo ""
 echo "========================================="

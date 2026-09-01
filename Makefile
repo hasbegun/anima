@@ -1,4 +1,4 @@
-.PHONY: setup get-secret bootstrap seed test test-phase1 test-phase2 test-phase3 test-phase4 \
+.PHONY: setup get-secret bootstrap seed test test-phase1 test-phase2 test-phase3 test-phase4 test-phase5 \
        backup restore logs logs-all status stop down clean build-toolbox all
 
 TOOLBOX = docker compose run --rm toolbox
@@ -68,6 +68,10 @@ test-phase3:
 test-phase4:
 	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
 	$(TOOLBOX) bash scripts/test-phase4.sh
+
+test-phase5:
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	$(TOOLBOX) bash scripts/test-phase5.sh
 
 # ──────────────────────────────────────────────
 # Operations
