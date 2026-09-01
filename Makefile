@@ -73,6 +73,10 @@ test-phase5:
 	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
 	$(TOOLBOX) bash scripts/test-phase5.sh
 
+test-phase6:
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	ADMIN_PASSWORD="$(ADMIN_PASSWORD)" bash scripts/test-phase6.sh
+
 # ──────────────────────────────────────────────
 # Operations
 # ──────────────────────────────────────────────

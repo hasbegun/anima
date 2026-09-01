@@ -9,11 +9,23 @@ Demonstrates JWT auth middleware integration:
   - GET  /whoami      → returns parsed caller identity
 """
 
+import os
+
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from auth import JWTAuthMiddleware, require_scope
 
 app = FastAPI(title="Monitoring API", version="1.0.0")
+
+# Middleware runs in reverse addition order: CORS processes first, then JWT.
 app.add_middleware(JWTAuthMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "https://localhost:3000").split(","),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 
 # ──────────────────────────────────────────────

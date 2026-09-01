@@ -8,8 +8,12 @@ plus a ``require_scope`` decorator for route-level enforcement.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import ssl
+import time
+import uuid
 from functools import wraps
 from typing import Optional
 
@@ -26,6 +30,34 @@ from starlette.middleware.base import BaseHTTPMiddleware
 THUNDERID_URL = os.getenv("THUNDERID_URL", "https://localhost:8090")
 RESOURCE_ID = os.getenv("RESOURCE_ID", "https://monitoring-api.internal")
 JWKS_URL = os.getenv("JWKS_URL", f"{THUNDERID_URL}/oauth2/jwks")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "monitoring-api")
+
+
+# ──────────────────────────────────────────────
+# Structured JSON audit logger
+# ──────────────────────────────────────────────
+class _JSONFormatter(logging.Formatter):
+    """Emit each log record as a single JSON line."""
+    def format(self, record: logging.LogRecord) -> str:
+        entry = {
+            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S.000Z"),
+            "level": record.levelname.lower(),
+            "service": SERVICE_NAME,
+        }
+        if isinstance(record.msg, dict):
+            entry.update(record.msg)
+        else:
+            entry["message"] = record.getMessage()
+        return json.dumps(entry, default=str)
+
+
+audit_logger = logging.getLogger("auth.audit")
+audit_logger.setLevel(logging.INFO)
+if not audit_logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(_JSONFormatter())
+    audit_logger.addHandler(_handler)
+    audit_logger.propagate = False
 
 # ──────────────────────────────────────────────
 # JWKS Client (cached, auto-refreshing)
@@ -110,24 +142,65 @@ PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())[:8]
+        request.state.request_id = request_id
+
         if request.url.path in PUBLIC_PATHS:
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
+            audit_logger.info({
+                "event": "auth_denied",
+                "request_id": request_id,
+                "endpoint": request.url.path,
+                "method": request.method,
+                "decision": "denied",
+                "reason": "missing_authorization_header",
+                "ip": request.client.host if request.client else None,
+            })
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Missing Authorization header"},
             )
 
         token = auth_header[7:]
+        start = time.monotonic()
         try:
             request.state.caller = verify_token(token)
         except HTTPException as exc:
+            audit_logger.info({
+                "event": "auth_denied",
+                "request_id": request_id,
+                "endpoint": request.url.path,
+                "method": request.method,
+                "decision": "denied",
+                "reason": exc.detail,
+                "ip": request.client.host if request.client else None,
+            })
             return JSONResponse(
                 status_code=exc.status_code,
                 content={"detail": exc.detail},
             )
+
+        verify_ms = round((time.monotonic() - start) * 1000, 1)
+        caller = request.state.caller
+        audit_logger.info({
+            "event": "auth_allowed",
+            "request_id": request_id,
+            "endpoint": request.url.path,
+            "method": request.method,
+            "decision": "allowed",
+            "subject": caller.subject,
+            "subject_type": "agent" if caller.is_agent else "user",
+            "scopes": caller.scopes,
+            "client_id": caller.client_id,
+            "grant_type": caller.grant_type,
+            "is_delegated": caller.is_delegated,
+            "acting_agent": caller.acting_agent,
+            "verify_ms": verify_ms,
+            "ip": request.client.host if request.client else None,
+        })
         return await call_next(request)
 
 
@@ -140,7 +213,21 @@ def require_scope(*scopes: str):
         @wraps(func)
         async def wrapper(request: Request, *args, **kwargs):
             caller: CallerIdentity = request.state.caller
+            request_id = getattr(request.state, "request_id", "")
             if not caller.has_any_scope(list(scopes)):
+                audit_logger.info({
+                    "event": "scope_denied",
+                    "request_id": request_id,
+                    "endpoint": request.url.path,
+                    "method": request.method,
+                    "decision": "denied",
+                    "reason": "insufficient_scope",
+                    "required_scopes": list(scopes),
+                    "actual_scopes": caller.scopes,
+                    "subject": caller.subject,
+                    "subject_type": "agent" if caller.is_agent else "user",
+                    "ip": request.client.host if request.client else None,
+                })
                 raise HTTPException(
                     403,
                     f"Requires scope: {', '.join(scopes)}. "

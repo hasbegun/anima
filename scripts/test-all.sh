@@ -36,6 +36,15 @@ run_phase 3
 run_phase 4
 run_phase 5
 
+# Phase 6 needs docker compose (host-side), skip if not available
+if command -v docker > /dev/null 2>&1; then
+    run_phase 6
+else
+    echo ""
+    echo "--- Phase 6 ---"
+    echo "  SKIP  (docker not available in this context)"
+fi
+
 echo ""
 echo "========================================="
 if [ "$FAILURES" -gt 0 ]; then
