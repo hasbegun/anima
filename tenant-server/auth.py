@@ -80,15 +80,30 @@ _jwks_client = PyJWKClient(
 # Parsed identity from token
 # ──────────────────────────────────────────────
 class CallerIdentity:
-    """Parsed caller identity from OAuth2 JWT claims."""
+    """Parsed caller identity from OAuth2 JWT claims.
+
+    ThunderID does not include a ``sub_type`` claim in JWTs, so we infer
+    the caller type from the ``grant_type`` claim:
+      - ``client_credentials`` → agent (autonomous machine identity)
+      - anything else          → user  (human via authorization_code, etc.)
+    If ThunderID adds ``sub_type`` in the future, we honour it directly.
+    """
 
     def __init__(self, claims: dict):
         self.subject: str = claims["sub"]
-        self.subject_type: str = claims.get("sub_type", "user")
         self.scopes: list[str] = claims.get("scope", "").split()
         self.client_id: str = claims.get("client_id", "")
         self.grant_type: str = claims.get("grant_type", "")
         self.raw_claims: dict = claims
+
+        # Infer subject_type: prefer explicit claim, fall back to grant_type
+        explicit = claims.get("sub_type")
+        if explicit:
+            self.subject_type: str = explicit
+        elif self.grant_type == "client_credentials":
+            self.subject_type = "agent"
+        else:
+            self.subject_type = "user"
 
         act = claims.get("act")
         self.acting_agent: Optional[str] = act["sub"] if act else None
@@ -96,11 +111,11 @@ class CallerIdentity:
 
     @property
     def is_agent(self) -> bool:
-        return self.grant_type == "client_credentials"
+        return self.subject_type == "agent"
 
     @property
     def is_human(self) -> bool:
-        return not self.is_agent
+        return self.subject_type == "user"
 
     def has_scope(self, scope: str) -> bool:
         return scope in self.scopes
@@ -192,7 +207,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "method": request.method,
             "decision": "allowed",
             "subject": caller.subject,
-            "subject_type": "agent" if caller.is_agent else "user",
+            "subject_type": caller.subject_type,
             "scopes": caller.scopes,
             "client_id": caller.client_id,
             "grant_type": caller.grant_type,
@@ -225,7 +240,7 @@ def require_scope(*scopes: str):
                     "required_scopes": list(scopes),
                     "actual_scopes": caller.scopes,
                     "subject": caller.subject,
-                    "subject_type": "agent" if caller.is_agent else "user",
+                    "subject_type": caller.subject_type,
                     "ip": request.client.host if request.client else None,
                 })
                 raise HTTPException(

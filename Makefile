@@ -1,5 +1,5 @@
 .PHONY: setup get-secret bootstrap seed test test-phase1 test-phase2 test-phase3 test-phase4 test-phase5 \
-       backup restore logs logs-all status stop down clean build-toolbox all
+       test-phase6 test-phase7 backup restore logs logs-all status stop down clean build-toolbox all
 
 TOOLBOX = docker compose run --rm toolbox
 
@@ -77,9 +77,20 @@ test-phase6:
 	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
 	ADMIN_PASSWORD="$(ADMIN_PASSWORD)" bash scripts/test-phase6.sh
 
+test-phase7:
+	bash scripts/test-phase7.sh
+
 # ──────────────────────────────────────────────
 # Operations
 # ──────────────────────────────────────────────
+backup:
+	bash scripts/backup-db.sh
+
+restore:
+	@echo "Usage: make restore FILE=backups/thunderid_YYYYMMDD.tar.gz"
+	@test -n "$(FILE)" || { echo "Error: set FILE=<backup.tar.gz>"; exit 1; }
+	CONFIRM=yes bash scripts/restore-db.sh $(FILE)
+
 logs:
 	docker compose logs -f thunderid
 

@@ -50,7 +50,7 @@ async def list_alerts(request: Request):
         ],
         "caller": {
             "subject": caller.subject,
-            "subject_type": "agent" if caller.is_agent else "user",
+            "subject_type": caller.subject_type,
             "scopes": caller.scopes,
             "is_delegated": caller.is_delegated,
             "acting_agent": caller.acting_agent,
@@ -66,7 +66,7 @@ async def create_alert(request: Request):
         "created": True,
         "caller": {
             "subject": caller.subject,
-            "subject_type": "agent" if caller.is_agent else "user",
+            "subject_type": caller.subject_type,
         },
     }
 
@@ -79,7 +79,7 @@ async def delete_alert(request: Request, alert_id: str):
         "deleted": alert_id,
         "caller": {
             "subject": caller.subject,
-            "subject_type": "agent" if caller.is_agent else "user",
+            "subject_type": caller.subject_type,
         },
     }
 
@@ -93,7 +93,7 @@ async def whoami(request: Request):
     caller = request.state.caller
     return {
         "subject": caller.subject,
-        "subject_type": "agent" if caller.is_agent else "user",
+        "subject_type": caller.subject_type,
         "scopes": caller.scopes,
         "client_id": caller.client_id,
         "grant_type": caller.grant_type,

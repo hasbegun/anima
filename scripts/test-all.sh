@@ -36,13 +36,14 @@ run_phase 3
 run_phase 4
 run_phase 5
 
-# Phase 6 needs docker compose (host-side), skip if not available
-if command -v docker > /dev/null 2>&1; then
+# Phases 6-7 need host access (docker compose, project files); skip in toolbox
+if command -v docker > /dev/null 2>&1 && [ -f "$(dirname "$SCRIPT_DIR")/.gitignore" ]; then
     run_phase 6
+    run_phase 7
 else
     echo ""
-    echo "--- Phase 6 ---"
-    echo "  SKIP  (docker not available in this context)"
+    echo "--- Phases 6-7 ---"
+    echo "  SKIP  (host-only tests, not available in this context)"
 fi
 
 echo ""
