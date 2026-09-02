@@ -1,0 +1,31 @@
+tenant-server/auth.py
+  a3914e1e29abc6d5 83-90,99-107,114,118,210,243
+scripts/test-all.sh
+  a3914e1e29abc6d5 39-40,42,45-46
+Makefile
+  a3914e1e29abc6d5 2,80-82,86-93
+tenant-server/main.py
+  a3914e1e29abc6d5 53,69,82,96
+scripts/test-phase7.sh
+  a3914e1e29abc6d5 1-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "3e06bce956685815dee182a29f63a44e5fafcbec",
+  "prompts": {
+    "a3914e1e29abc6d5": {
+      "agent_id": {
+        "tool": "windsurf",
+        "id": "verdant-antimatter",
+        "model": "unknown"
+      },
+      "human_author": "Inho Choi",
+      "messages": [],
+      "total_additions": 293,
+      "total_deletions": 20,
+      "accepted_lines": 290,
+      "overriden_lines": 0
+    }
+  }
+}
