@@ -142,9 +142,13 @@ run_test "2.10 Role 'pipeline-admin' exists in data-pipeline" \
     api_assert "roles" \
     "assert any(r['name'] == 'pipeline-admin' and r['ouHandle'] == 'data-pipeline' for r in d['roles'])"
 
-run_test "2.11 At least 6 custom roles exist" \
+run_test "2.11 Role 'deploy-admin' exists in deploy-tool" \
     api_assert "roles" \
-    "assert len([r for r in d['roles'] if r['name'] != 'Administrator']) >= 6"
+    "assert any(r['name'] == 'deploy-admin' and r['ouHandle'] == 'deploy-tool' for r in d['roles'])"
+
+run_test "2.12 At least 9 custom roles exist" \
+    api_assert "roles" \
+    "assert len([r for r in d['roles'] if r['name'] != 'Administrator']) >= 9"
 
 # ----- Seed Users (check via API) -----
 
@@ -169,21 +173,21 @@ assert found, '$email not found'
 "
 }
 
-run_test "2.12 Seed user 'alice@company.com' exists" \
+run_test "2.13 Seed user 'alice@company.com' exists" \
     check_user_exists "alice@company.com"
 
-run_test "2.13 Seed user 'bob@company.com' exists" \
+run_test "2.14 Seed user 'bob@company.com' exists" \
     check_user_exists "bob@company.com"
 
-run_test "2.14 Seed user 'sysadmin@company.com' exists" \
+run_test "2.15 Seed user 'sysadmin@company.com' exists" \
     check_user_exists "sysadmin@company.com"
 
 # ----- Idempotency -----
 
-run_test "2.15 Bootstrap is idempotent" \
+run_test "2.16 Bootstrap is idempotent" \
     bash -c "cd '$PROJECT_DIR/bootstrap' && python3 bootstrap.py > /dev/null 2>&1"
 
-run_test "2.16 Seed is idempotent" \
+run_test "2.17 Seed is idempotent" \
     bash -c "cd '$PROJECT_DIR/bootstrap' && python3 seed_users.py > /dev/null 2>&1"
 
 echo ""

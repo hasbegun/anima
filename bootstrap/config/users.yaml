@@ -7,6 +7,8 @@ user_assignments:
         roles: ["monitoring-admin"]
       - tenant: "data-pipeline"
         roles: ["pipeline-admin"]
+      - tenant: "deploy-tool"
+        roles: ["deploy-admin"]
 
   - email: "alice@company.com"
     tenants:

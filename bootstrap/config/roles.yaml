@@ -50,3 +50,26 @@ roles:
     scopes:
       - "pipelines:read"
       - "data:read"
+
+  # Deployment Tool roles
+  - name: "deploy-admin"
+    tenant: "deploy-tool"
+    resource_server: "https://deploy-tool.internal"
+    scopes:
+      - "deployments:read"
+      - "deployments:trigger"
+      - "deployments:rollback"
+      - "configs:manage"
+
+  - name: "deploy-operator"
+    tenant: "deploy-tool"
+    resource_server: "https://deploy-tool.internal"
+    scopes:
+      - "deployments:read"
+      - "deployments:trigger"
+
+  - name: "deploy-viewer"
+    tenant: "deploy-tool"
+    resource_server: "https://deploy-tool.internal"
+    scopes:
+      - "deployments:read"
