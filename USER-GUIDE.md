@@ -45,7 +45,7 @@ A centralized identity service for internal servers, built on **ThunderID**. Pro
 ### Identity Types
 
 | Type | Description | Auth Flow | Example |
-|------|-------------|-----------|---------|
+| ------ | ------------- | ----------- | --------- |
 | **Human** | People who log in via browser | Authorization code (email OTP, passkey) | `alice@company.com` logging into a dashboard |
 | **Autonomous Agent** | AI agents with their own identity | Client credentials (`client_id` + `client_secret`) | A nightly cleanup bot |
 | **Delegated Agent** | AI agents acting on behalf of a human | Authorization code + PKCE | An AI assistant investigating alerts for a user |
@@ -53,7 +53,7 @@ A centralized identity service for internal servers, built on **ThunderID**. Pro
 ### Technology Stack
 
 | Component | Technology | Purpose |
-|-----------|-----------|---------|
+| ----------- | ----------- | --------- |
 | Identity Provider | ThunderID v1.0.1 | OAuth2/OIDC, user/agent management, token issuance |
 | Database | Embedded SQLite | Zero-config persistence (4 database files) |
 | Email (dev) | MailSlurper | Captures OTP emails during development |
@@ -88,7 +88,7 @@ Internal services trust the network boundary. Any process on the internal networ
 As AI agents become more autonomous — making decisions, triggering deployments, modifying data, calling other agents — the lack of proper identity creates compounding risks:
 
 | Risk | Description |
-|------|-------------|
+| ------ | ------------- |
 | **No accountability** | When an agent deletes production data, audit logs show "api-key-1" or "bot-user@company.com". You cannot trace the action to a specific agent, its owner, or the model that generated the decision. |
 | **No least privilege** | Shared keys grant blanket access. An agent that only needs `alerts:read` gets full admin access because that's what the key provides. |
 | **No revocation** | If one agent is compromised, you must rotate the shared key, breaking every other agent that uses it. |
@@ -114,7 +114,7 @@ The result is that every API request — whether from a human in a browser or an
 ThunderID is not a general-purpose identity provider retrofitted for agents. It was built with **native agent identity** as a core feature:
 
 | Capability | Traditional IdP (Keycloak, Auth0, Okta) | ThunderID |
-|------------|----------------------------------------|-----------|
+| ------------ | ---------------------------------------- | ----------- |
 | **Agent as first-class entity** | No. Agents are hacked in as "service accounts" or "machine-to-machine apps" with no agent-specific attributes. | Yes. Agents have a dedicated API (`/agents`), dedicated schema (model, provider, function, team), and are distinct from users and service accounts. |
 | **Agent metadata** | None. A service account is just a client_id with a name. | Rich attributes: `model`, `modelProvider`, `function`, `team`, and custom fields. You know *what kind* of agent is calling. |
 | **Delegated identity (act-on-behalf)** | Requires custom token exchange setup. Most IdPs don't support the `act` claim natively. | Built-in. Delegated agents use standard authorization code + PKCE. The `act` claim is populated automatically. |
@@ -300,7 +300,7 @@ A delegated agent acts **on behalf of a human**. The human authorizes the agent,
 ### Side-by-Side Comparison
 
 | Dimension | Human | Autonomous Agent | Delegated Agent |
-|-----------|-------|-----------------|-----------------|
+| ----------- | ------- | ----------------- | ----------------- |
 | **Who authenticates** | A person via browser | A machine process | An agent, authorized by a person |
 | **OAuth2 grant** | `authorization_code` | `client_credentials` | `authorization_code` + PKCE |
 | **Credentials** | Email + OTP / passkey | `client_id` + `client_secret` | `client_id` + `client_secret` + user consent |
@@ -570,7 +570,7 @@ ThunderID is healthy
 ### Service Endpoints
 
 | Service | URL | Purpose |
-|---------|-----|---------|
+| --------- | ----- | --------- |
 | ThunderID API | `https://localhost:8090` | OAuth2/OIDC endpoints |
 | Admin Console | `https://localhost:8090/console` | Web-based admin UI |
 | User Login Gate | `https://localhost:8090/gate` | User registration and login |
@@ -762,7 +762,7 @@ roles:
 Each tenant follows the **admin > operator > viewer** pattern:
 
 | Role | Access Level | Typical Use |
-|------|-------------|-------------|
+| ------ | ------------- | ------------- |
 | `*-admin` | All scopes | Service owners, SREs |
 | `*-operator` | Read + write (no delete/manage) | Day-to-day operators |
 | `*-viewer` | Read only | Auditors, stakeholders |
@@ -770,7 +770,7 @@ Each tenant follows the **admin > operator > viewer** pattern:
 ### Current Roles (9 total)
 
 | Tenant | Admin | Operator | Viewer |
-|--------|-------|----------|--------|
+| -------- | ------- | ---------- | -------- |
 | monitoring-api | monitoring-admin | monitoring-operator | monitoring-viewer |
 | data-pipeline | pipeline-admin | pipeline-engineer | pipeline-readonly |
 | deploy-tool | deploy-admin | deploy-operator | deploy-viewer |
@@ -838,7 +838,7 @@ AI agents are **first-class identities** in this system — not repurposed servi
 ### Agent Types
 
 | Type | Grant Type | Use Case | Example |
-|------|-----------|----------|---------|
+| ------ | ----------- | ---------- | --------- |
 | **Autonomous** | `client_credentials` | Agents that act on their own, with no human in the loop | Nightly cleanup bot, pipeline scheduler, data ingestion agent |
 | **Delegated** | `authorization_code` + PKCE | Agents acting on behalf of a specific human user | AI assistant, copilot, human-in-the-loop workflow agent |
 
@@ -1400,7 +1400,7 @@ class CallerIdentity:
 ThunderID does not include a `sub_type` claim in JWTs. The middleware infers the caller type:
 
 | Priority | Condition | Result |
-|----------|-----------|--------|
+| ---------- | ----------- | -------- |
 | 1 | Explicit `sub_type` claim present | Use that value directly |
 | 2 | `grant_type == "client_credentials"` | `"agent"` |
 | 3 | Default | `"user"` |
@@ -1473,7 +1473,7 @@ The tenant server produces structured JSON audit logs for every authentication d
 ### Event Types
 
 | Event | When | Key Fields |
-|-------|------|------------|
+| ------- | ------ | ------------ |
 | `auth_denied` | No token, invalid token, expired token | `reason`, `ip`, `endpoint` |
 | `auth_allowed` | Valid token accepted | `subject`, `subject_type`, `scopes`, `verify_ms` |
 | `scope_denied` | Valid token but insufficient scopes | `required_scopes`, `actual_scopes` |
@@ -1496,7 +1496,7 @@ docker compose logs monitoring-api | grep 'auth_denied\|scope_denied'
 Every log entry contains:
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `timestamp` | string | ISO 8601 timestamp |
 | `level` | string | Always `"info"` for auth events |
 | `service` | string | Service name (e.g., `"monitoring-api"`) |
@@ -1510,7 +1510,7 @@ Every log entry contains:
 Additional fields for `auth_allowed`:
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `subject` | string | User or agent ID |
 | `subject_type` | string | `"user"` or `"agent"` |
 | `scopes` | array | Granted scopes |
@@ -1580,7 +1580,7 @@ Add to cron for daily backups:
 ### Makefile Commands
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `make setup` | Start ThunderID and MailSlurper from scratch |
 | `make build-toolbox` | Build the toolbox container |
 | `make get-secret` | Print the Direct Auth Secret |
@@ -1625,14 +1625,14 @@ curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | py
 ### Environment Variables (.env)
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `ADMIN_USERNAME` | `admin` | ThunderID admin username |
 | `ADMIN_PASSWORD` | *(required)* | ThunderID admin password (from setup) |
 
 ### Docker Compose Services
 
 | Service | Image | Ports | Purpose |
-|---------|-------|-------|---------|
+| --------- | ------- | ------- | --------- |
 | `thunderid-setup` | `thunderid:1.0.1` | *(none)* | One-shot: generates keys and secrets |
 | `thunderid` | `thunderid:1.0.1` | `8090` | Identity provider (OAuth2/OIDC) |
 | `mailslurper` | `oryd/mailslurper` | `4436`, `1025` | Dev email capture |
@@ -1642,7 +1642,7 @@ curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | py
 ### Tenant Server Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `THUNDERID_URL` | `https://localhost:8090` | ThunderID base URL |
 | `RESOURCE_ID` | `https://monitoring-api.internal` | This server's resource identifier |
 | `JWKS_URL` | `${THUNDERID_URL}/oauth2/jwks` | JWKS endpoint URL |
@@ -1653,7 +1653,7 @@ curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | py
 ### ThunderID Data Storage
 
 | Volume | Path in Container | Contents |
-|--------|------------------|----------|
+| -------- | ------------------ | ---------- |
 | `thunderid-db` | `/opt/thunderid/database/` | 4 SQLite databases |
 | `thunderid-certs` | `/opt/thunderid/config/certs/` | TLS certs, JWT signing keys, crypto key |
 | `thunderid-secrets` | `/opt/thunderid/config/secrets/` | Direct Auth Secret |
@@ -1665,7 +1665,7 @@ curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | py
 ### What's Protected
 
 | Item | How | Where |
-|------|-----|-------|
+| ------ | ----- | ------- |
 | Admin password | `.env` in `.gitignore` | `.env` file |
 | Setup output | `setup-output.txt` in `.gitignore` | Project root |
 | Agent secrets | `agent-secrets.json` in `.gitignore` | `bootstrap/config/` |
@@ -1687,7 +1687,7 @@ curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | py
 ### Production Recommendations
 
 | Area | Dev (current) | Production |
-|------|--------------|------------|
+| ------ | -------------- | ------------ |
 | TLS | Self-signed (auto-generated) | Proper CA-signed certificates |
 | Email | MailSlurper | Real SMTP provider |
 | Database | Embedded SQLite | PostgreSQL (see master-plan.md Section 18.3) |

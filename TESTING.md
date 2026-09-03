@@ -50,7 +50,7 @@ ADMIN_PASSWORD=<pw> make test-phase3
 Tests run in two environments:
 
 | Environment | Phases | Why |
-|-------------|--------|-----|
+| ------------- | -------- | ----- |
 | **Toolbox container** | 1, 2, 3, 4, 5 | Access to ThunderID internal network, Python dependencies pre-installed |
 | **Host machine** | 6, 7 | Needs `docker compose` CLI for log inspection, backup/restore, and access to project files for static checks |
 
@@ -132,7 +132,7 @@ Before running tests, ensure:
 Verifies that the core infrastructure is up and responding.
 
 | Test | Description | What It Checks |
-|------|-------------|----------------|
+| ------ | ------------- | ---------------- |
 | 1.1 | Server responds | OIDC discovery endpoint returns valid JSON |
 | 1.2 | OIDC discovery available | Response contains `issuer`, `token_endpoint`, `jwks_uri` fields |
 | 1.3 | JWKS endpoint returns keys | `/oauth2/jwks` returns at least 1 RSA signing key |
@@ -167,7 +167,7 @@ Verifies that the core infrastructure is up and responding.
 Verifies that all tenants, resource servers, roles, and users were created correctly.
 
 | Test | Description | What It Checks |
-|------|-------------|----------------|
+| ------ | ------------- | ---------------- |
 | 2.1 | Tenant 'monitoring-api' exists | Organization unit with handle `monitoring-api` in ThunderID |
 | 2.2 | Tenant 'data-pipeline' exists | Organization unit with handle `data-pipeline` |
 | 2.3 | Tenant 'deploy-tool' exists | Organization unit with handle `deploy-tool` |
@@ -219,7 +219,7 @@ Verifies that all tenants, resource servers, roles, and users were created corre
 Verifies AI agent creation, OAuth2 client credentials flow, scope enforcement, and cross-agent isolation.
 
 | Test | Description | What It Checks |
-|------|-------------|----------------|
+| ------ | ------------- | ---------------- |
 | 3.1 | Agent 'alert-cleanup-agent' exists | Agent registered in ThunderID |
 | 3.2 | Agent 'pipeline-scheduler-agent' exists | Agent registered in ThunderID |
 | 3.3 | Agent 'monitoring-assistant' is delegated | Has `authorization_code` grant type, PKCE required, redirect URI set |
@@ -237,7 +237,7 @@ Verifies AI agent creation, OAuth2 client credentials flow, scope enforcement, a
 **3 Agents** defined in `bootstrap/config/agents.yaml`:
 
 | Agent | Mode | Tenant | Scopes | Role |
-|-------|------|--------|--------|------|
+| ------- | ------ | -------- | -------- | ------ |
 | `alert-cleanup-agent` | Autonomous | monitoring-api | `alerts:read`, `alerts:write` | monitoring-operator |
 | `pipeline-scheduler-agent` | Autonomous | data-pipeline | `pipelines:read`, `pipelines:run` | pipeline-engineer |
 | `monitoring-assistant` | Delegated | monitoring-api | `alerts:read`, `dashboards:read` | *(none — inherits user's scopes)* |
@@ -289,7 +289,7 @@ Response:
 Verifies the complete OAuth2 token lifecycle: issuance, offline JWKS verification, introspection, revocation, audience isolation, and negative cases.
 
 | Test | Description | What It Checks |
-|------|-------------|----------------|
+| ------ | ------------- | ---------------- |
 | 4.1 | Token verified offline via JWKS (PyJWT) | Full JWKS flow: fetch signing key, decode JWT, validate claims |
 | 4.2 | Token audience matches RS identifier | Pipeline agent token has `aud: https://data-pipeline.internal` |
 | 4.3 | JWKS verification rejects wrong audience | Monitoring token fails validation against pipeline audience |
@@ -327,7 +327,7 @@ Verifies the complete OAuth2 token lifecycle: issuance, offline JWKS verificatio
 Verifies the reference tenant server (monitoring-api) correctly enforces JWT authentication, scope-based authorization, and returns proper caller identity information.
 
 | Test | Description | What It Checks |
-|------|-------------|----------------|
+| ------ | ------------- | ---------------- |
 | 5.1 | No JWT → 401 | Request without Authorization header returns 401 with "Missing Authorization header" |
 | 5.2 | Malformed JWT → 401 | Invalid token string returns 401 |
 | 5.3 | Valid JWT, wrong audience → 401 | Pipeline token (aud=data-pipeline) rejected by monitoring-api (aud=monitoring-api) |
@@ -344,7 +344,7 @@ Verifies the reference tenant server (monitoring-api) correctly enforces JWT aut
 ### Monitoring API Endpoints
 
 | Endpoint | Method | Required Scope | Auth |
-|----------|--------|---------------|------|
+| ---------- | -------- | --------------- | ------ |
 | `/health` | GET | *(none)* | Public |
 | `/alerts` | GET | `alerts:read` | JWT required |
 | `/alerts` | POST | `alerts:write` | JWT required |
@@ -389,7 +389,7 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:9100/alerts/x
 Verifies structured audit logging, CORS configuration, and backup/restore functionality.
 
 | Test | Description | What It Checks |
-|------|-------------|----------------|
+| ------ | ------------- | ---------------- |
 | 6.1 | Audit log: auth_denied is structured JSON | Log entry has `event`, `timestamp`, `service`, `decision`, `request_id`, `endpoint`, `method` |
 | 6.2 | Audit log: auth_allowed has identity + timing | Log entry has `subject`, `subject_type`, `scopes`, `verify_ms`, `client_id` |
 | 6.3 | Audit log: scope_denied shows required vs actual | Log entry has `required_scopes`, `actual_scopes`, `reason: insufficient_scope` |
@@ -466,7 +466,7 @@ Each log entry is a single JSON line written to stdout:
 ### Backup Contents (tested by 6.8)
 
 | File | Description |
-|------|-------------|
+| ------ | ------------- |
 | `configdb.db` | ThunderID configuration (tenants, resource servers, roles) |
 | `entitydb.db` | Users, agents, credentials |
 | `runtime_persistent.db` | Persistent runtime data |
@@ -489,7 +489,7 @@ Each log entry is a single JSON line written to stdout:
 Verifies bug fixes from the quality audit (CallerIdentity.is_agent/is_human), subject_type consistency, and security checklist items.
 
 | Test | Description | What It Checks |
-|------|-------------|----------------|
+| ------ | ------------- | ---------------- |
 | 7.1 | Agent token → subject_type is 'agent' | `/whoami` returns `subject_type: "agent"` (inferred from grant_type) |
 | 7.2 | JWT has no sub_type claim | ThunderID omits `sub_type` — our inference logic handles this |
 | 7.3 | Agent token sub matches registered agentId | `sub` claim equals the agent's ID from `agent-secrets.json` |
@@ -524,7 +524,7 @@ else:
 Test 7.7 validates all 4 scenarios as a unit test:
 
 | Scenario | grant_type | sub_type | Result |
-|----------|-----------|----------|--------|
+| ---------- | ----------- | ---------- | -------- |
 | Agent (inferred) | `client_credentials` | *(absent)* | `"agent"` |
 | User (inferred) | `authorization_code` | *(absent)* | `"user"` |
 | Explicit override | `client_credentials` | `"service"` | `"service"` |
@@ -552,7 +552,7 @@ scripts/
 ### Environment Variables
 
 | Variable | Used By | Default | Description |
-|----------|---------|---------|-------------|
+| ---------- | --------- | --------- | ------------- |
 | `THUNDERID_URL` | Phases 1-7 | `https://localhost:8090` (toolbox: `https://thunderid:8090`) | ThunderID base URL |
 | `THUNDERID_PUBLIC_URL` | Phases 2-3 | `https://localhost:8090` | Externally-registered origin |
 | `MONITORING_API_URL` | Phases 5-7 | Varies by environment | Monitoring API base URL |
