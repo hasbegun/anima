@@ -142,7 +142,7 @@ Verifies that the core infrastructure is up and responding.
 
 ### Example Output
 
-```
+```text
 === Phase 1: ThunderID Setup Tests ===
 
   PASS  1.1 Server responds
@@ -536,7 +536,7 @@ Test 7.7 validates all 4 scenarios as a unit test:
 
 ### File Locations
 
-```
+```text
 scripts/
 ├── test-all.sh          # Full suite runner (orchestrates phases 1-7)
 ├── test-phase1.sh       # ThunderID infrastructure
