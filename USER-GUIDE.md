@@ -7,26 +7,28 @@ A centralized identity service for internal servers, built on **ThunderID**. Pro
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Architecture](#architecture)
-3. [Quick Start](#quick-start)
-4. [Initial Setup (Phase 1)](#initial-setup-phase-1)
-5. [Bootstrap (Phase 2)](#bootstrap-phase-2)
-6. [Managing Tenants](#managing-tenants)
-7. [Managing Resource Servers and Scopes](#managing-resource-servers-and-scopes)
-8. [Managing Roles](#managing-roles)
-9. [Managing Users](#managing-users)
-10. [AI Agent Identity](#ai-agent-identity)
-11. [Token Flows](#token-flows)
-12. [Integrating a Tenant Server](#integrating-a-tenant-server)
-13. [The CallerIdentity Model](#the-calleridentity-model)
-14. [CORS Configuration](#cors-configuration)
-15. [Audit Logging](#audit-logging)
-16. [Backup and Restore](#backup-and-restore)
-17. [Operations Reference](#operations-reference)
-18. [Configuration Reference](#configuration-reference)
-19. [Security](#security)
-20. [Project Structure](#project-structure)
-21. [Troubleshooting](#troubleshooting)
+2. [Why AI Agent Identity Matters](#why-ai-agent-identity-matters)
+3. [Human Auth vs Agent Auth: A Deep Comparison](#human-auth-vs-agent-auth-a-deep-comparison)
+4. [Architecture](#architecture)
+5. [Quick Start](#quick-start)
+6. [Initial Setup (Phase 1)](#initial-setup-phase-1)
+7. [Bootstrap (Phase 2)](#bootstrap-phase-2)
+8. [Managing Tenants](#managing-tenants)
+9. [Managing Resource Servers and Scopes](#managing-resource-servers-and-scopes)
+10. [Managing Roles](#managing-roles)
+11. [Managing Users](#managing-users)
+12. [AI Agent Identity](#ai-agent-identity)
+13. [Token Flows](#token-flows)
+14. [Integrating a Tenant Server](#integrating-a-tenant-server)
+15. [The CallerIdentity Model](#the-calleridentity-model)
+16. [CORS Configuration](#cors-configuration)
+17. [Audit Logging](#audit-logging)
+18. [Backup and Restore](#backup-and-restore)
+19. [Operations Reference](#operations-reference)
+20. [Configuration Reference](#configuration-reference)
+21. [Security](#security)
+22. [Project Structure](#project-structure)
+23. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -58,6 +60,396 @@ A centralized identity service for internal servers, built on **ThunderID**. Pro
 | Bootstrap | Python 3.12 + httpx | Automated tenant/role/agent provisioning |
 | Tenant Auth | Python 3.12 + PyJWT | JWT verification middleware for FastAPI |
 | Container Runtime | Docker Compose | Local deployment orchestration |
+
+---
+
+## Why AI Agent Identity Matters
+
+### The Problem: Agents Without Identity
+
+Most organizations today authenticate their AI agents using one of three broken patterns:
+
+**1. Shared API Keys**
+A static key is embedded in the agent's configuration. Every agent on the team uses the same key, or one key per service. There is no way to know *which* agent made a request. If the key leaks, every agent is compromised. There is no way to revoke one agent without rotating the key for all of them.
+
+```
+# The dangerous status quo
+MONITORING_API_KEY=sk-abc123...   # Who is using this? Which agent? When?
+```
+
+**2. Piggybacking on Human Credentials**
+An engineer creates a "bot" user account and hardcodes its email and password. The agent authenticates as a human. Audit logs show a person who doesn't exist. The agent has whatever permissions that fake human has — often far too many — and there is no concept of delegation or accountability.
+
+**3. No Authentication at All**
+Internal services trust the network boundary. Any process on the internal network can call any API. An agent running in a container can access every service without restriction.
+
+### Why This Is Unacceptable
+
+As AI agents become more autonomous — making decisions, triggering deployments, modifying data, calling other agents — the lack of proper identity creates compounding risks:
+
+| Risk | Description |
+|------|-------------|
+| **No accountability** | When an agent deletes production data, audit logs show "api-key-1" or "bot-user@company.com". You cannot trace the action to a specific agent, its owner, or the model that generated the decision. |
+| **No least privilege** | Shared keys grant blanket access. An agent that only needs `alerts:read` gets full admin access because that's what the key provides. |
+| **No revocation** | If one agent is compromised, you must rotate the shared key, breaking every other agent that uses it. |
+| **No delegation chain** | When Agent A asks Agent B to perform a sub-task, there is no cryptographic record of who authorized what. |
+| **No distinction** | Downstream services cannot tell whether a request came from a human or an agent. This matters for rate limiting, audit compliance, and security policy. |
+| **Credential sprawl** | API keys end up in environment variables, CI configs, chat messages, and git history. There is no lifecycle management. |
+
+### The Solution: First-Class Agent Identity
+
+This identity service treats AI agents as **first-class citizens** in the same identity system as humans. Every agent gets:
+
+- Its own **unique ID** — not a repurposed user account
+- Its own **OAuth2 credentials** — standard `client_id` + `client_secret`, managed by the identity provider
+- Its own **roles and scopes** — the same RBAC system that governs human access
+- Its own **audit trail** — every token issued to an agent is traceable to that specific agent
+- Its own **lifecycle** — credentials can be rotated, revoked, or deleted independently
+- **Attribution metadata** — which LLM model, provider, team, and function the agent represents
+
+The result is that every API request — whether from a human in a browser or an LLM agent in a container — carries a cryptographically signed token that says exactly who is making the request, what they are allowed to do, and whether they are acting on their own or on behalf of someone else.
+
+### What ThunderID Brings to the Table
+
+ThunderID is not a general-purpose identity provider retrofitted for agents. It was built with **native agent identity** as a core feature:
+
+| Capability | Traditional IdP (Keycloak, Auth0, Okta) | ThunderID |
+|------------|----------------------------------------|-----------|
+| **Agent as first-class entity** | No. Agents are hacked in as "service accounts" or "machine-to-machine apps" with no agent-specific attributes. | Yes. Agents have a dedicated API (`/agents`), dedicated schema (model, provider, function, team), and are distinct from users and service accounts. |
+| **Agent metadata** | None. A service account is just a client_id with a name. | Rich attributes: `model`, `modelProvider`, `function`, `team`, and custom fields. You know *what kind* of agent is calling. |
+| **Delegated identity (act-on-behalf)** | Requires custom token exchange setup. Most IdPs don't support the `act` claim natively. | Built-in. Delegated agents use standard authorization code + PKCE. The `act` claim is populated automatically. |
+| **Agent-to-agent delegation** | Not supported. | Supported via token exchange with nested `act` claims. Agent A can delegate to Agent B with automatic downscoping. |
+| **Unified RBAC** | Separate permission models for humans and machines. | Same roles, same scopes, same resource servers. An agent with `monitoring-operator` gets exactly the same permissions as a human with that role. |
+| **Deployment simplicity** | Keycloak: Java app + PostgreSQL + Redis. Auth0/Okta: SaaS with vendor lock-in. | Single Go binary with embedded SQLite. One container, zero external dependencies. |
+| **Embedded admin UI** | Separate admin console deployment. | Built-in Console (admin) and Gate (login) at the same URL. |
+| **MCP Authorization** | Not supported. | Native support for Model Context Protocol authorization (future phase). |
+
+---
+
+## Human Auth vs Agent Auth: A Deep Comparison
+
+### Authentication: How Identity Is Proven
+
+Human and agent authentication differ fundamentally in *who* is present and *how* they prove their identity.
+
+#### Human Authentication Flow
+
+A human authenticates interactively via a browser. The flow involves user interaction at every step:
+
+```
+┌─────────┐                    ┌──────────────┐                  ┌───────────┐
+│  Human  │                    │  ThunderID   │                  │  Email    │
+│ (Browser)│                    │              │                  │  (SMTP)   │
+└────┬────┘                    └──────┬───────┘                  └─────┬─────┘
+     │                                │                                │
+     │  1. Navigate to Gate           │                                │
+     │  ─────────────────────────────►│                                │
+     │                                │                                │
+     │  2. Enter email address        │                                │
+     │  ─────────────────────────────►│                                │
+     │                                │  3. Send OTP code              │
+     │                                │  ─────────────────────────────►│
+     │                                │                                │
+     │  4. Check email, copy code     │                                │
+     │  ◄─────────────────────────────────────────────────────────────│
+     │                                │                                │
+     │  5. Submit OTP code            │                                │
+     │  ─────────────────────────────►│                                │
+     │                                │                                │
+     │  6. Receive JWT + refresh token│                                │
+     │  ◄─────────────────────────────│                                │
+     │                                │                                │
+```
+
+**Key characteristics:**
+- Requires a **browser** and **user interaction**
+- Authentication involves **out-of-band verification** (email OTP, passkey, or social login)
+- The OAuth2 grant type is **`authorization_code`**
+- A **session** is created in ThunderID, enabling **refresh tokens**
+- The user must **consent** to the scopes being requested
+- The resulting token has `grant_type: "authorization_code"` and the `sub` claim is the user's UUID
+
+**Human token example:**
+```json
+{
+  "sub": "01a05cc2-1234-5678-9abc-def012345678",
+  "aud": "https://monitoring-api.internal",
+  "scope": "alerts:read alerts:write dashboards:read",
+  "grant_type": "authorization_code",
+  "client_id": "monitoring-app",
+  "iss": "https://localhost:8090",
+  "exp": 1788333291,
+  "iat": 1788329691,
+  "jti": "unique-token-id"
+}
+```
+
+#### Autonomous Agent Authentication Flow
+
+An autonomous agent authenticates **programmatically** with no human in the loop. It uses pre-provisioned credentials:
+
+```
+┌───────────────────┐                    ┌──────────────┐
+│  Autonomous Agent │                    │  ThunderID   │
+│  (Background Job) │                    │              │
+└────────┬──────────┘                    └──────┬───────┘
+         │                                      │
+         │  1. POST /oauth2/token               │
+         │     grant_type=client_credentials    │
+         │     client_id + client_secret        │
+         │     resource=https://api.internal    │
+         │     scope=alerts:read alerts:write   │
+         │  ────────────────────────────────────►│
+         │                                      │
+         │                                      │  2. Validate credentials
+         │                                      │  3. Check agent's roles & scopes
+         │                                      │  4. Intersect requested with allowed
+         │                                      │
+         │  5. Return JWT access token          │
+         │  ◄────────────────────────────────────│
+         │                                      │
+```
+
+**Key characteristics:**
+- **No browser, no human, no interaction** — purely machine-to-machine
+- Authentication uses **client_id + client_secret** (pre-provisioned OAuth2 credentials)
+- The OAuth2 grant type is **`client_credentials`**
+- **No refresh token** — the agent simply requests a new access token when the current one expires
+- **No consent screen** — the agent's allowed scopes are pre-configured during bootstrap
+- Scopes are **automatically downscoped** — the token contains the intersection of requested scopes and the agent's configured roles
+- The resulting token has `grant_type: "client_credentials"` and the `sub` claim is the agent's UUID
+
+**Autonomous agent token example:**
+```json
+{
+  "sub": "01a05bb5-becb-74ac-b5bd-7be2a7a34a60",
+  "aud": "https://monitoring-api.internal",
+  "scope": "alerts:read alerts:write",
+  "grant_type": "client_credentials",
+  "client_id": "ooxvbe9uMY2fRpqmifhogw",
+  "iss": "https://localhost:8090",
+  "exp": 1788333291,
+  "iat": 1788329691,
+  "jti": "unique-token-id"
+}
+```
+
+#### Delegated Agent Authentication Flow
+
+A delegated agent acts **on behalf of a human**. The human authorizes the agent, and the agent receives a token that carries both identities:
+
+```
+┌─────────┐        ┌───────────────────┐        ┌──────────────┐
+│  Human  │        │  Delegated Agent  │        │  ThunderID   │
+│ (Browser)│        │  (AI Assistant)   │        │              │
+└────┬────┘        └────────┬──────────┘        └──────┬───────┘
+     │                      │                          │
+     │  1. User triggers    │                          │
+     │     agent action     │                          │
+     │  ───────────────────►│                          │
+     │                      │                          │
+     │                      │  2. Redirect user to     │
+     │                      │     /oauth2/authorize    │
+     │  ◄───────────────────│     (PKCE challenge)     │
+     │                      │                          │
+     │  3. User logs in     │                          │
+     │     and consents     │                          │
+     │  ──────────────────────────────────────────────►│
+     │                      │                          │
+     │  4. Redirect with    │                          │
+     │     auth code        │                          │
+     │  ───────────────────►│                          │
+     │                      │                          │
+     │                      │  5. Exchange code for    │
+     │                      │     token (PKCE verify)  │
+     │                      │  ───────────────────────►│
+     │                      │                          │
+     │                      │  6. Receive JWT with     │
+     │                      │     sub=user, act=agent  │
+     │                      │  ◄───────────────────────│
+     │                      │                          │
+```
+
+**Key characteristics:**
+- **Combines both identities** — the human's identity is the subject, the agent is the actor
+- Uses **authorization_code + PKCE** — the same flow as human login, but initiated by the agent
+- PKCE (Proof Key for Code Exchange) prevents authorization code interception attacks
+- The token's `sub` is the **user's ID**, and the `act` claim contains the **agent's ID**
+- The agent can only access scopes the **user has consented to** and that the **agent is configured for** (intersection of both)
+- The downstream API can see *who* authorized the action and *which agent* performed it
+
+**Delegated agent token example:**
+```json
+{
+  "sub": "01a05cc2-1234-5678-9abc-def012345678",
+  "act": {
+    "sub": "01a05bb5-becb-74ac-b5bd-7be2a7a34a60",
+    "iss": "https://localhost:8090"
+  },
+  "aud": "https://monitoring-api.internal",
+  "scope": "alerts:read dashboards:read",
+  "grant_type": "authorization_code",
+  "client_id": "monitoring-assistant-client-id",
+  "iss": "https://localhost:8090",
+  "exp": 1788333291,
+  "iat": 1788329691,
+  "jti": "unique-token-id"
+}
+```
+
+### Side-by-Side Comparison
+
+| Dimension | Human | Autonomous Agent | Delegated Agent |
+|-----------|-------|-----------------|-----------------|
+| **Who authenticates** | A person via browser | A machine process | An agent, authorized by a person |
+| **OAuth2 grant** | `authorization_code` | `client_credentials` | `authorization_code` + PKCE |
+| **Credentials** | Email + OTP / passkey | `client_id` + `client_secret` | `client_id` + `client_secret` + user consent |
+| **Interaction** | Interactive (browser) | Non-interactive (API call) | Interactive (user consents), then non-interactive |
+| **Session** | Yes (refresh token) | No (request new token on expiry) | Yes (refresh token, tied to user session) |
+| **Token `sub`** | User UUID | Agent UUID | User UUID |
+| **Token `act`** | *(absent)* | *(absent)* | `{sub: agent-uuid}` |
+| **Token `grant_type`** | `authorization_code` | `client_credentials` | `authorization_code` |
+| **subject_type** (inferred) | `"user"` | `"agent"` | `"user"` (with `act` claim) |
+| **Scope source** | User's roles + consent | Agent's roles (automatic) | Intersection of user's roles, agent's config, and consent |
+| **Consent** | Explicit (consent screen) | Implicit (pre-configured) | Explicit (user consents to agent's scope request) |
+| **Credential rotation** | User changes password | Regenerate client_secret via API/console | Regenerate client_secret |
+| **Revocation** | Revoke session/token | Delete agent or regenerate secret | Revoke user's consent or agent's credentials |
+| **Typical lifetime** | Until user logs out | 1 hour (re-request on expiry) | Until user revokes consent |
+| **Audit trail** | `sub=user-id` | `sub=agent-id, client_id=agent-client` | `sub=user-id, act.sub=agent-id` |
+
+### How the Tenant Server Tells Them Apart
+
+When a request arrives at a tenant server, the JWT middleware decodes the token and creates a `CallerIdentity` object. The server can then make decisions based on the caller type:
+
+```python
+@app.get("/alerts")
+@require_scope("alerts:read")
+async def get_alerts(request: Request):
+    caller = request.state.caller
+
+    if caller.is_agent and not caller.is_delegated:
+        # Autonomous agent: maybe rate-limit more aggressively,
+        # or return machine-optimized response format
+        log.info(f"Agent {caller.subject} fetching alerts")
+        return {"alerts": alerts, "format": "compact"}
+
+    elif caller.is_delegated:
+        # Agent acting on behalf of a human: record both identities,
+        # apply the human's preferences
+        log.info(f"Agent {caller.acting_agent} acting for user {caller.subject}")
+        return {"alerts": alerts, "on_behalf_of": caller.subject}
+
+    elif caller.is_human:
+        # Regular human request: full response with UI metadata
+        log.info(f"User {caller.subject} fetching alerts")
+        return {"alerts": alerts, "format": "full", "dashboard_url": "..."}
+```
+
+### The Unified RBAC Model
+
+A critical design decision: **humans and agents share the same RBAC system**. This means:
+
+- A role like `monitoring-operator` grants the same scopes (`alerts:read`, `alerts:write`, `dashboards:read`) regardless of whether it's assigned to a person or an agent
+- Roles are defined once per tenant and assigned to any identity type
+- When you add a new scope to a role, every human and agent with that role automatically gets it
+- There is no separate "machine permissions" system to maintain
+
+```
+                    ┌──────────────────┐
+                    │  monitoring-api  │  (Tenant)
+                    └────────┬─────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+     ┌────────────┐  ┌──────────────┐  ┌──────────────┐
+     │  monitoring │  │  monitoring  │  │  monitoring  │
+     │  -admin     │  │  -operator   │  │  -viewer     │  (Roles)
+     └──────┬─────┘  └──────┬───────┘  └──────┬───────┘
+            │               │                 │
+     ┌──────┴─────┐  ┌──────┴───────┐  ┌──────┴───────┐
+     │  All 6     │  │  alerts:read │  │  alerts:read │
+     │  scopes    │  │  alerts:write│  │  dashboards: │  (Scopes)
+     │            │  │  dashboards: │  │  read        │
+     │            │  │  read        │  │              │
+     └────────────┘  └──────────────┘  └──────────────┘
+            │               │                 │
+     Assigned to:    Assigned to:      Assigned to:
+     • sysadmin@...  • alice@...       • bob@...
+                     • alert-cleanup
+                       -agent
+```
+
+In this diagram, `alice@company.com` and `alert-cleanup-agent` have the exact same permissions. The difference is only in how they authenticate and how they are identified in tokens and audit logs.
+
+### Security Implications
+
+#### Principle of Least Privilege
+
+With first-class agent identity, every agent gets **only the scopes it needs**:
+
+```yaml
+# The alert-cleanup-agent can ONLY read and write alerts.
+# It cannot delete alerts, read dashboards, or manage settings.
+agents:
+  - name: "alert-cleanup-agent"
+    scopes:
+      - "alerts:read"    # Needed to find expired alerts
+      - "alerts:write"   # Needed to update/archive them
+      # alerts:delete — NOT granted
+      # dashboards:read — NOT granted
+      # settings:manage — NOT granted
+```
+
+Even if the agent requests broader scopes in its token request, ThunderID automatically **downscopes** the token to the intersection of requested and allowed scopes.
+
+#### Credential Isolation
+
+Each agent has **independent credentials**. Compromising one agent does not compromise others:
+
+```
+Agent A: client_id=abc, client_secret=secret1 → Only monitoring scopes
+Agent B: client_id=def, client_secret=secret2 → Only pipeline scopes
+Agent C: client_id=ghi, client_secret=secret3 → Only deployment scopes
+
+# Rotate Agent B's secret without touching A or C:
+# → Agent B gets a new client_secret
+# → Agents A and C are unaffected
+```
+
+#### Full Audit Trail
+
+Every request is traceable to a specific identity:
+
+```json
+// Human request audit log
+{"event": "auth_allowed", "subject": "01a05cc2-...", "subject_type": "user",
+ "scopes": ["alerts:read"], "client_id": "monitoring-app"}
+
+// Autonomous agent audit log
+{"event": "auth_allowed", "subject": "01a05bb5-...", "subject_type": "agent",
+ "scopes": ["alerts:read", "alerts:write"], "client_id": "ooxvbe9uMY2f..."}
+
+// Delegated agent audit log
+{"event": "auth_allowed", "subject": "01a05cc2-...", "subject_type": "user",
+ "is_delegated": true, "acting_agent": "01a05bb5-...",
+ "scopes": ["alerts:read"]}
+```
+
+#### Cross-Tenant Isolation
+
+Tokens are audience-scoped to a single resource server. An agent with access to `monitoring-api` cannot use its token at `data-pipeline`:
+
+```
+alert-cleanup-agent token:
+  aud: "https://monitoring-api.internal"   ← Only valid here
+  scope: "alerts:read alerts:write"
+
+Pipeline API middleware:
+  Expected audience: "https://data-pipeline.internal"
+  → REJECT: audience mismatch (401)
+```
+
+This limits the blast radius if an agent token is compromised — it can only affect one tenant's API.
 
 ---
 
@@ -441,12 +833,69 @@ The ThunderID admin console (`https://localhost:8090/console`) provides a web UI
 
 ## AI Agent Identity
 
+AI agents are **first-class identities** in this system — not repurposed service accounts or hacked-in "bot users." Each agent has its own UUID, credentials, metadata, and audit trail. This section covers everything you need to register, configure, and operate agents.
+
 ### Agent Types
 
 | Type | Grant Type | Use Case | Example |
 |------|-----------|----------|---------|
-| **Autonomous** | `client_credentials` | Agents that act on their own | Nightly cleanup bot, pipeline scheduler |
-| **Delegated** | `authorization_code` + PKCE | Agents acting on behalf of a user | AI assistant, copilot |
+| **Autonomous** | `client_credentials` | Agents that act on their own, with no human in the loop | Nightly cleanup bot, pipeline scheduler, data ingestion agent |
+| **Delegated** | `authorization_code` + PKCE | Agents acting on behalf of a specific human user | AI assistant, copilot, human-in-the-loop workflow agent |
+
+**When to use autonomous mode:**
+- The agent runs unattended (cron jobs, event-driven triggers, background workers)
+- The agent's actions are attributable to the agent itself, not to any particular user
+- The agent needs a fixed set of permissions that don't change per-request
+
+**When to use delegated mode:**
+- The agent acts on behalf of a specific user (e.g., "investigate this alert for me")
+- The agent should only have permissions the user has consented to
+- Audit logs need to show both the user (who authorized) and the agent (who acted)
+- The agent's scope should be bounded by the user's own scope (no privilege escalation)
+
+### Agent Lifecycle
+
+```
+1. REGISTER     bootstrap.py creates the agent in ThunderID
+                 → Agent ID, Client ID, Client Secret generated
+                 → Credentials saved to agent-secrets.json
+
+2. CONFIGURE    Agent is assigned roles and scopes via bootstrap config
+                 → Same RBAC as human users
+
+3. AUTHENTICATE Agent requests tokens from ThunderID
+                 → client_credentials for autonomous
+                 → authorization_code + PKCE for delegated
+
+4. OPERATE      Agent calls tenant APIs with JWT tokens
+                 → Tokens are verified offline via JWKS
+                 → Scopes are enforced per-endpoint
+
+5. ROTATE       Regenerate client_secret via ThunderID API/Console
+                 → Old secret is immediately invalidated
+                 → Agent receives new secret, no other agents affected
+
+6. REVOKE       Delete the agent or regenerate its secret
+                 → All future token requests fail
+                 → Existing tokens remain valid until expiry (JWKS trade-off)
+```
+
+### Agent Attributes (Metadata)
+
+Every agent can carry structured metadata that describes what kind of agent it is:
+
+```yaml
+attributes:
+  model: "gpt-4"              # Which LLM model powers this agent
+  modelProvider: "openai"      # Which provider (openai, anthropic, etc.)
+  function: "task-automation"  # What function the agent serves
+  team: "platform"             # Which team owns this agent
+```
+
+This metadata is stored in ThunderID and queryable via the management API. It enables:
+- **Inventory management** — know which agents exist, what models they use, who owns them
+- **Policy decisions** — e.g., only allow `claude-*` models to access certain APIs
+- **Incident response** — when something goes wrong, quickly identify the agent's model and owner
 
 ### Agent Configuration
 
@@ -531,13 +980,89 @@ Response:
 
 ### Adding a New Agent
 
-1. Add an entry to `bootstrap/config/agents.yaml`
-2. Run `ADMIN_PASSWORD=<pw> make bootstrap`
-3. New agent credentials appear in `agent-secrets.json`
+**Step 1.** Add an entry to `bootstrap/config/agents.yaml`:
+
+```yaml
+  - name: "my-new-agent"
+    tenant: "monitoring-api"           # Which tenant this agent belongs to
+    type: "default"
+    mode: "autonomous"                 # or "delegated"
+    description: "Does something useful"
+    attributes:
+      model: "gpt-4o"
+      modelProvider: "openai"
+      function: "data-analysis"
+    roles:
+      - "monitoring-viewer"            # Pre-existing role in this tenant
+    scopes:
+      - "alerts:read"                  # Must be a subset of the role's scopes
+      - "dashboards:read"
+```
+
+**Step 2.** Run bootstrap (idempotent — existing agents are skipped):
+
+```bash
+ADMIN_PASSWORD=<pw> make bootstrap
+```
+
+**Step 3.** Retrieve the new agent's credentials from `agent-secrets.json`:
+
+```bash
+python3 -c "
+import json
+secrets = json.load(open('bootstrap/config/agent-secrets.json'))
+agent = secrets['my-new-agent']
+print(f'Agent ID:      {agent[\"agentId\"]}')
+print(f'Client ID:     {agent[\"clientId\"]}')
+print(f'Client Secret: {agent[\"clientSecret\"]}')
+"
+```
+
+**Step 4.** Store the credentials securely in your agent's runtime environment (environment variable, secrets manager, etc.). Never commit them to git.
+
+### Scope Enforcement and Downscoping
+
+When an agent requests a token, ThunderID computes the **intersection** of three sets:
+
+```
+Granted scopes = (Agent's role scopes) ∩ (Resource server scopes) ∩ (Requested scopes)
+```
+
+This means:
+- An agent cannot request scopes beyond what its roles allow
+- An agent cannot request scopes that the resource server doesn't define
+- If the agent requests `alerts:delete` but its role only grants `alerts:read` and `alerts:write`, the resulting token will NOT contain `alerts:delete`
+
+Example:
+
+```
+Agent role: monitoring-operator
+  → Grants: alerts:read, alerts:write, dashboards:read
+
+Agent requests: scope=alerts:read alerts:write alerts:delete dashboards:read
+
+Token receives: scope=alerts:read alerts:write dashboards:read
+  → alerts:delete was silently removed (not in role)
+```
+
+This automatic downscoping is verified by test 3.8 in the test suite.
+
+### Credential Rotation
+
+To rotate an agent's client_secret without downtime:
+
+1. Generate a new secret via ThunderID Console or API
+2. Update the agent's runtime configuration with the new secret
+3. The old secret is immediately invalidated
+4. Other agents are unaffected
+
+For a full re-provision, delete the `agent-secrets.json` and re-run `make bootstrap`. New credentials will be generated for any agents not found in the secrets file.
 
 ---
 
 ## Token Flows
+
+This section details every token flow supported by the system, with full request/response examples.
 
 ### Flow 1: Autonomous Agent Token (Client Credentials)
 
@@ -572,7 +1097,90 @@ Agent                     Tenant Server              ThunderID
   │◄──── 200 + alert data ────│                         │
 ```
 
-### Flow 3: Token Revocation
+### Flow 3: Delegated Agent Token (Authorization Code + PKCE)
+
+This flow is used when an agent needs to act on behalf of a specific user. The user must consent.
+
+```bash
+# Step 1: Agent generates a PKCE code verifier and challenge
+CODE_VERIFIER=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
+CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 -w0 | tr '+/' '-_' | tr -d '=')
+
+# Step 2: Agent redirects the user's browser to ThunderID's authorize endpoint
+# The user will see a login screen and then a consent screen.
+echo "Open this URL in a browser:"
+echo "https://localhost:8090/oauth2/authorize?\
+response_type=code&\
+client_id=$CLIENT_ID&\
+redirect_uri=http://localhost:3000/callback&\
+scope=alerts:read dashboards:read&\
+resource=https://monitoring-api.internal&\
+code_challenge=$CODE_CHALLENGE&\
+code_challenge_method=S256"
+
+# Step 3: After the user logs in and consents, ThunderID redirects to the
+# callback URL with an authorization code:
+#   http://localhost:3000/callback?code=AUTH_CODE_HERE
+
+# Step 4: Agent exchanges the authorization code for a token
+curl -X POST https://localhost:8090/oauth2/token \
+  -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d "grant_type=authorization_code" \
+  -d "code=$AUTH_CODE" \
+  -d "redirect_uri=http://localhost:3000/callback" \
+  -d "code_verifier=$CODE_VERIFIER" \
+  --insecure
+```
+
+The resulting token carries both identities:
+```json
+{
+  "sub": "01a05cc2-...",
+  "act": {"sub": "01a05bb5-...", "iss": "https://localhost:8090"},
+  "aud": "https://monitoring-api.internal",
+  "scope": "alerts:read dashboards:read",
+  "grant_type": "authorization_code"
+}
+```
+
+- `sub` = the **user** who authorized the action
+- `act.sub` = the **agent** that is performing the action
+- Downstream APIs can see both and make policy decisions accordingly
+
+### Flow 4: Agent-to-Agent Delegation (Token Exchange)
+
+When Agent A needs Agent B to perform a sub-task, it uses OAuth2 token exchange to create a delegation chain:
+
+```bash
+# Agent A has its own token and wants Agent B to act with downscoped permissions
+curl -X POST https://localhost:8090/oauth2/token \
+  -u "$AGENT_B_CLIENT_ID:$AGENT_B_CLIENT_SECRET" \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+  -d "subject_token=$AGENT_A_TOKEN" \
+  -d "subject_token_type=urn:ietf:params:oauth:token-type:access_token" \
+  -d "scope=alerts:read" \
+  --insecure
+```
+
+The resulting token has nested `act` claims:
+```json
+{
+  "sub": "original-subject-id",
+  "act": {
+    "sub": "agent-b-id",
+    "act": {
+      "sub": "agent-a-id"
+    }
+  },
+  "scope": "alerts:read"
+}
+```
+
+Token exchange enforces **strict downscoping** — the new token can never have more scopes than the original. This prevents privilege escalation in agent delegation chains.
+
+### Flow 5: Token Revocation
 
 ```bash
 # Revoke a token
@@ -585,7 +1193,7 @@ curl -X POST https://localhost:8090/oauth2/revoke \
 
 **Important:** Revoked tokens are immediately invalid for online checks (introspection) but remain cryptographically valid for offline JWKS verification until they expire. This is a known trade-off of offline JWT verification.
 
-### Flow 4: Token Introspection
+### Flow 6: Token Introspection
 
 ```bash
 # Check if a token is still active
@@ -605,6 +1213,42 @@ Response:
   "scope": "alerts:read alerts:write",
   "exp": 1788333291
 }
+```
+
+### Flow 7: Offline vs Online Verification (The Revocation Trade-Off)
+
+A critical architectural decision in this system is **offline JWT verification via JWKS**. Understanding the trade-off is essential.
+
+**Offline verification (what tenant servers do):**
+```
+Tenant server fetches JWKS (public keys) once, caches them.
+Every incoming JWT is verified locally using the cached keys.
+No call to ThunderID is needed per-request.
+
+Pros:  Zero latency added, no SPOF, works even if ThunderID is down
+Cons:  Cannot detect token revocation until the token expires
+```
+
+**Online verification (introspection):**
+```
+Tenant server calls ThunderID's /oauth2/introspect for each token.
+ThunderID checks its revocation list and responds active/inactive.
+
+Pros:  Detects revocation immediately
+Cons:  Adds latency per-request, ThunderID becomes a SPOF
+```
+
+**This system uses offline verification by default.** If you need real-time revocation detection for sensitive operations, you can add an introspection check for specific endpoints:
+
+```python
+@app.delete("/critical-resource/{id}")
+@require_scope("resource:delete")
+async def delete_critical(request: Request, id: str):
+    caller = request.state.caller
+    # For destructive operations, verify the token is not revoked
+    if not await introspect_token(request.headers["Authorization"][7:]):
+        raise HTTPException(401, "Token has been revoked")
+    return {"deleted": id}
 ```
 
 ---
