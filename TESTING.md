@@ -546,7 +546,10 @@ scripts/
 ├── test-phase5.sh       # Tenant server integration
 ├── test-phase6.sh       # Operations (logging, CORS, backup)
 ├── test-phase7.sh       # Quality audit & security
-└── test-api.sh          # Legacy smoke test (not called by test-all.sh)
+├── test-api.sh          # Legacy smoke test (not called by test-all.sh)
+├── backup-db.sh         # SQLite hot backup to tarball
+├── restore-db.sh        # Full restore from backup tarball
+└── upgrade.sh           # Automated ThunderID version upgrade & rollback
 ```
 
 ### Environment Variables

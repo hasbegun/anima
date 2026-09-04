@@ -1601,6 +1601,9 @@ Add to cron for daily backups:
 | `ADMIN_PASSWORD=<pw> make test-phase{N}` | Run a specific phase's tests |
 | `make backup` | Create a backup |
 | `make restore FILE=<path>` | Restore from a backup |
+| `ADMIN_PASSWORD=<pw> make upgrade VERSION=X.Y.Z` | Upgrade ThunderID to a new version |
+| `ADMIN_PASSWORD=<pw> make upgrade-check VERSION=X.Y.Z` | Pre-flight check (no changes) |
+| `make upgrade-rollback` | Rollback the last upgrade |
 | `make logs` | Follow ThunderID logs |
 | `make logs-all` | Follow all service logs |
 | `make status` | Show running services and health |
@@ -1713,6 +1716,44 @@ curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | py
 
 This section covers how to upgrade ThunderID when a new version is released, what risks are involved, and how to roll back if something goes wrong.
 
+### Automated Upgrade (Recommended)
+
+The upgrade process is fully automated via `scripts/upgrade.sh`. It handles backup, image swap, health checks, bootstrap verification, test suite, and automatic rollback state.
+
+**Quick reference:**
+
+```bash
+# Pre-flight check (read-only — no changes)
+ADMIN_PASSWORD=<pw> make upgrade-check VERSION=1.1.0
+
+# Full upgrade (backup → swap → verify → test)
+ADMIN_PASSWORD=<pw> make upgrade VERSION=1.1.0
+
+# Rollback if something goes wrong
+make upgrade-rollback
+```
+
+**What the script does (8 steps):**
+
+1. Pulls the new image (fails fast if version doesn't exist)
+2. Creates a full backup (`scripts/backup-db.sh`)
+3. Saves rollback state (old version + backup path)
+4. Updates image tags in `docker-compose.yml` (2 lines)
+5. Restarts ThunderID, waits for healthy
+6. Verifies OIDC discovery and JWKS endpoints
+7. Re-runs `bootstrap.py` and `seed_users.py` (tests management API compatibility)
+8. Runs the full test suite (Phases 1-7)
+
+If any step fails, the script stops and prints rollback instructions. Run `make upgrade-rollback` to revert to the previous version and restore the backup.
+
+**Environment variables:**
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `ADMIN_PASSWORD` | Yes | Admin password for bootstrap/test verification |
+| `VERSION` | Yes | Target ThunderID version (e.g., `1.1.0`) |
+| `SKIP_TESTS` | No | Set to `true` to skip the test suite after upgrade |
+
 ### Upgrade Difficulty: Low to Medium
 
 The system is designed to make upgrades straightforward:
@@ -1766,7 +1807,11 @@ These are proprietary to ThunderID and could change:
 | `docker-compose.yml` (setup command) | Low | `./setup.sh --verbose` interface changes |
 | Docker volume paths | Low | Database, cert, and secret directory locations |
 
-### Step-by-Step Upgrade Procedure
+### Step-by-Step Upgrade Procedure (Manual Reference)
+
+> **Note:** The steps below are automated by `make upgrade VERSION=X.Y.Z`.
+> This section is a reference for understanding what happens under the hood,
+> or for cases where you need to perform a partial upgrade manually.
 
 #### Pre-Upgrade
 
@@ -1915,9 +1960,15 @@ git commit -m "Upgrade ThunderID from v1.0.1 to vX.Y.Z"
 
 ### Rollback Procedure
 
-If the upgrade fails at any step, roll back to the previous version:
+If the upgrade fails at any step, the fastest way to roll back is:
 
-**Quick rollback (revert image tag):**
+```bash
+make upgrade-rollback
+```
+
+This restores the old image tag, reverts the test assertion, and restores data from the pre-upgrade backup (if the database was modified).
+
+**Manual rollback (if the automated rollback state is unavailable):**
 
 ```bash
 # 1. Stop the new version
@@ -2016,7 +2067,8 @@ auth/
 │   ├── test-phase7.sh            # Quality audit tests (15)
 │   ├── test-api.sh               # Legacy smoke test
 │   ├── backup-db.sh              # SQLite hot backup
-│   └── restore-db.sh             # Full restore from tarball
+│   ├── restore-db.sh             # Full restore from tarball
+│   └── upgrade.sh                # Automated ThunderID version upgrade
 │
 ├── backups/
 │   └── .gitkeep                  # Backup tarballs stored here (gitignored)

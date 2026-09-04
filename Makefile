@@ -1,5 +1,6 @@
 .PHONY: setup get-secret bootstrap seed test test-phase1 test-phase2 test-phase3 test-phase4 test-phase5 \
-       test-phase6 test-phase7 backup restore logs logs-all status stop down clean build-toolbox all
+       test-phase6 test-phase7 backup restore upgrade upgrade-check upgrade-rollback \
+       logs logs-all status stop down clean build-toolbox all
 
 TOOLBOX = docker compose run --rm toolbox
 
@@ -90,6 +91,24 @@ restore:
 	@echo "Usage: make restore FILE=backups/thunderid_YYYYMMDD.tar.gz"
 	@test -n "$(FILE)" || { echo "Error: set FILE=<backup.tar.gz>"; exit 1; }
 	CONFIRM=yes bash scripts/restore-db.sh $(FILE)
+
+# ──────────────────────────────────────────────
+# Upgrade
+# ──────────────────────────────────────────────
+upgrade:
+	@echo "Usage: make upgrade VERSION=X.Y.Z"
+	@test -n "$(VERSION)" || { echo "Error: set VERSION=<new_version>"; exit 1; }
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	ADMIN_PASSWORD="$(ADMIN_PASSWORD)" bash scripts/upgrade.sh $(VERSION)
+
+upgrade-check:
+	@echo "Usage: make upgrade-check VERSION=X.Y.Z"
+	@test -n "$(VERSION)" || { echo "Error: set VERSION=<new_version>"; exit 1; }
+	@test -n "$(ADMIN_PASSWORD)" || { echo "Error: set ADMIN_PASSWORD"; exit 1; }
+	ADMIN_PASSWORD="$(ADMIN_PASSWORD)" bash scripts/upgrade.sh $(VERSION) --check
+
+upgrade-rollback:
+	bash scripts/upgrade.sh --rollback
 
 logs:
 	docker compose logs -f thunderid
