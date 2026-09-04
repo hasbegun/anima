@@ -27,8 +27,9 @@ A centralized identity service for internal servers, built on **ThunderID**. Pro
 19. [Operations Reference](#operations-reference)
 20. [Configuration Reference](#configuration-reference)
 21. [Security](#security)
-22. [Project Structure](#project-structure)
-23. [Troubleshooting](#troubleshooting)
+22. [Upgrading ThunderID](#upgrading-thunderid)
+23. [Project Structure](#project-structure)
+24. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -1705,6 +1706,268 @@ curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | py
 | Admin access | Open | Restrict via reverse proxy / VPN |
 | Backups | Manual (`make backup`) | Automated daily cron job |
 | Monitoring | None | Prometheus + Grafana |
+
+---
+
+## Upgrading ThunderID
+
+This section covers how to upgrade ThunderID when a new version is released, what risks are involved, and how to roll back if something goes wrong.
+
+### Upgrade Difficulty: Low to Medium
+
+The system is designed to make upgrades straightforward:
+
+| Factor | Impact | Why |
+| ------ | ------ | --- |
+| **Docker image swap** | Trivial | Only 2 lines to change in `docker-compose.yml` |
+| **OAuth2/OIDC endpoints** | Very low risk | These are industry standards (`/oauth2/token`, `/oauth2/jwks`, etc.) — unlikely to break between versions |
+| **Management API** | Medium risk | ThunderID-specific endpoints (`/agents`, `/roles`, `/import`) could change — check release notes |
+| **Config format** | Medium risk | `deployment.yaml` keys could be added or renamed |
+| **Database schema** | Low risk | ThunderID handles its own migrations on startup |
+| **Tenant server middleware** | No risk | Uses only standard JWKS/JWT — completely decoupled from ThunderID version |
+
+### What Depends on the ThunderID Version
+
+Understanding the coupling surface helps you assess upgrade risk:
+
+**Standard OAuth2/OIDC (version-independent):**
+
+These endpoints follow RFCs and will not break between ThunderID versions:
+
+| Endpoint | Used By | Standard |
+| -------- | ------- | -------- |
+| `GET /.well-known/openid-configuration` | Test scripts, OIDC clients | RFC 8414 |
+| `GET /oauth2/jwks` | `tenant-server/auth.py` (JWKS verification) | RFC 7517 |
+| `POST /oauth2/token` | Agent token requests, bootstrap auth | RFC 6749 |
+| `POST /oauth2/introspect` | Test scripts (online verification) | RFC 7662 |
+| `POST /oauth2/revoke` | Test scripts (revocation) | RFC 7009 |
+| `GET /oauth2/authorize` | `bootstrap/auth.py` (admin login flow) | RFC 6749 |
+
+**ThunderID-specific APIs (check release notes on upgrade):**
+
+These are proprietary to ThunderID and could change:
+
+| Endpoint | Used By | Purpose |
+| -------- | ------- | ------- |
+| `POST /import` | `bootstrap/bootstrap.py`, `seed_users.py` | Bulk create tenants, resource servers, roles, users |
+| `GET /agents`, `POST /agents` | `bootstrap/bootstrap.py` | List and create AI agents |
+| `GET /roles` | `bootstrap/bootstrap.py`, `seed_users.py` | List roles for assignment |
+| `POST /roles/{id}/assignments/add` | `bootstrap/bootstrap.py`, `seed_users.py` | Assign roles to agents/users |
+| `GET /resource-servers/{id}/resources` | `bootstrap/bootstrap.py` | List resources under a resource server |
+| `POST /resource-servers/{id}/resources/{rid}/actions` | `bootstrap/bootstrap.py` | Create scope actions |
+| `GET /users`, `GET /users/{id}` | `seed_users.py`, test scripts | List and inspect users |
+| `POST /oauth2/auth/callback` | `bootstrap/auth.py` | Exchange login assertion for auth code |
+
+**Configuration files (review on upgrade):**
+
+| File | Risk | What to check |
+| ---- | ---- | ------------- |
+| `thunderid/deployment.yaml` | Medium | New required config keys, renamed fields, deprecated options |
+| `docker-compose.yml` (setup command) | Low | `./setup.sh --verbose` interface changes |
+| Docker volume paths | Low | Database, cert, and secret directory locations |
+
+### Step-by-Step Upgrade Procedure
+
+#### Pre-Upgrade
+
+**Step 1. Read the release notes**
+
+Before upgrading, check the ThunderID release notes for:
+
+- Breaking API changes (especially `/import`, `/agents`, `/roles` endpoints)
+- New required configuration keys in `deployment.yaml`
+- Database migration notes
+- Deprecated features
+
+```bash
+# Check the current version
+docker inspect auth-thunderid-1 --format '{{.Config.Image}}'
+# → ghcr.io/thunder-id/thunderid:1.0.1
+```
+
+**Step 2. Create a full backup**
+
+Always backup before upgrading. This is your rollback safety net.
+
+```bash
+make backup
+# → backups/thunderid_YYYYMMDD_HHMMSS.tar.gz
+
+# Verify the backup is valid
+ls -lh backups/thunderid_*.tar.gz | tail -1
+```
+
+**Step 3. Record the current state**
+
+```bash
+# Save current test results as a baseline
+ADMIN_PASSWORD=<pw> make test 2>&1 | tee pre-upgrade-test-results.txt
+ADMIN_PASSWORD=<pw> make test-phase6 2>&1 | tee -a pre-upgrade-test-results.txt
+make test-phase7 2>&1 | tee -a pre-upgrade-test-results.txt
+```
+
+#### Performing the Upgrade
+
+**Step 4. Update the image tag**
+
+Edit `docker-compose.yml` and change both ThunderID image references:
+
+```yaml
+# Before
+thunderid-setup:
+  image: ghcr.io/thunder-id/thunderid:1.0.1   # ← old version
+
+thunderid:
+  image: ghcr.io/thunder-id/thunderid:1.0.1   # ← old version
+
+# After
+thunderid-setup:
+  image: ghcr.io/thunder-id/thunderid:X.Y.Z   # ← new version
+
+thunderid:
+  image: ghcr.io/thunder-id/thunderid:X.Y.Z   # ← new version
+```
+
+Both lines must have the same version. There are exactly 2 lines to change.
+
+**Step 5. Pull the new image**
+
+```bash
+docker compose pull thunderid-setup thunderid
+```
+
+**Step 6. Review deployment.yaml for new config keys**
+
+Compare your `thunderid/deployment.yaml` against the new version's documentation. Add any new required keys. Our config is minimal (12 keys), so this is usually a quick check.
+
+**Step 7. Restart ThunderID with the new version**
+
+```bash
+# Stop the old version
+docker compose stop thunderid monitoring-api
+
+# Start the new version (thunderid-setup runs first, handles any migrations)
+docker compose up -d thunderid
+
+# Wait for it to be healthy
+make status
+```
+
+ThunderID's `setup.sh` runs automatically on start and handles database migrations. Watch the logs for migration output:
+
+```bash
+docker compose logs thunderid-setup | tail -20
+docker compose logs thunderid | head -30
+```
+
+**Step 8. Verify basic functionality**
+
+```bash
+# Health check
+curl -sf --insecure https://localhost:8090/.well-known/openid-configuration | python3 -m json.tool
+
+# JWKS endpoint
+curl -sf --insecure https://localhost:8090/oauth2/jwks | python3 -m json.tool
+```
+
+**Step 9. Re-run bootstrap (idempotent)**
+
+This verifies the management API is still compatible:
+
+```bash
+ADMIN_PASSWORD=<pw> make bootstrap
+ADMIN_PASSWORD=<pw> make seed
+```
+
+If bootstrap fails, the management API has changed. Check error messages against the release notes.
+
+**Step 10. Start tenant servers and run the full test suite**
+
+```bash
+docker compose up -d monitoring-api
+
+# Wait for health
+sleep 5 && curl -sf http://localhost:9100/health
+
+# Run all tests
+ADMIN_PASSWORD=<pw> make test
+ADMIN_PASSWORD=<pw> make test-phase6
+make test-phase7
+```
+
+**Step 11. Update the version assertion in test-phase7.sh**
+
+Test 7.11 checks that the image is pinned. Update it to the new version:
+
+```bash
+# In scripts/test-phase7.sh, find and update the version check:
+sed -i "s/thunderid:1.0.1/thunderid:X.Y.Z/g" scripts/test-phase7.sh
+```
+
+#### Post-Upgrade
+
+**Step 12. Commit the version bump**
+
+```bash
+git add docker-compose.yml scripts/test-phase7.sh
+git commit -m "Upgrade ThunderID from v1.0.1 to vX.Y.Z"
+```
+
+### Rollback Procedure
+
+If the upgrade fails at any step, roll back to the previous version:
+
+**Quick rollback (revert image tag):**
+
+```bash
+# 1. Stop the new version
+docker compose stop thunderid
+
+# 2. Revert docker-compose.yml to the old image tag
+#    (git checkout or manual edit)
+git checkout docker-compose.yml
+
+# 3. Start the old version
+docker compose up -d thunderid
+
+# 4. Wait for healthy
+make status
+```
+
+**Full rollback (restore from backup):**
+
+If the database schema was migrated and is no longer compatible with the old version:
+
+```bash
+# 1. Revert docker-compose.yml to the old image tag
+git checkout docker-compose.yml
+
+# 2. Restore the pre-upgrade backup
+make restore FILE=backups/thunderid_YYYYMMDD_HHMMSS.tar.gz
+
+# 3. Verify everything works
+make status
+ADMIN_PASSWORD=<pw> make test
+```
+
+### What Can Go Wrong
+
+| Scenario | Symptom | Fix |
+| -------- | ------- | --- |
+| **Management API changed** | `bootstrap.py` fails with 400/404 errors | Check release notes, update API calls in `bootstrap.py` |
+| **Config format changed** | ThunderID won't start, logs show config errors | Compare `deployment.yaml` against new docs, add/rename keys |
+| **Database migration failed** | ThunderID crashes on startup | Restore from backup, report to ThunderID maintainers |
+| **JWKS key format changed** | Tenant servers return 401 on all requests | Restart tenant servers to clear JWKS cache |
+| **New required env vars** | Setup fails or ThunderID won't start | Check release notes, add to `.env` and `docker-compose.yml` |
+| **OAuth2 endpoint behavior changed** | Tests 3.x or 4.x fail | Very unlikely (standards-based), but check release notes |
+
+### Version Compatibility Notes
+
+**Tenant servers are version-independent.** The monitoring-api (and any server you build following Section 14) uses only standard JWKS/JWT verification. It does not call any ThunderID-specific API. You can upgrade ThunderID without touching or restarting your tenant servers — they will continue to verify tokens using their cached JWKS keys.
+
+**Bootstrap scripts are version-sensitive.** The `bootstrap.py` and `seed_users.py` scripts call ThunderID-specific management APIs. If ThunderID changes these APIs, you'll need to update the scripts. The test suite will catch this — if `make bootstrap` succeeds and all tests pass, you're good.
+
+**The fallback plan.** If ThunderID makes a breaking change that requires significant rework, the previous Kratos-based architecture is preserved in `master-plan-kratos-v1.md`. Because the tenant server middleware uses standard JWKS, migrating to a different OIDC provider only requires changing the JWKS URL — no tenant server code changes needed.
 
 ---
 

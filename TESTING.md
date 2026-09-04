@@ -500,7 +500,7 @@ Verifies bug fixes from the quality audit (CallerIdentity.is_agent/is_human), su
 | 7.8 | .env is in .gitignore | Secrets not committed to git |
 | 7.9 | setup-output.txt is in .gitignore | Admin password not committed |
 | 7.10 | agent-secrets.json is in .gitignore | Client secrets not committed |
-| 7.11 | ThunderID image pinned to v1.0.1 | No `latest` tag used |
+| 7.11 | ThunderID image pinned to specific version | No `latest` tag used — update this test after version upgrades |
 | 7.12 | JWKS cache TTL configured | `cache_jwk_set=True`, `lifespan=3600` |
 | 7.13 | CORS uses explicit origins, not wildcard | No `*` in allow_origins |
 | 7.14 | Docker restart policies set | At least 3 services have restart policies |
