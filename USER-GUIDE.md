@@ -2073,6 +2073,7 @@ auth/
 ├── backups/
 │   └── .gitkeep                  # Backup tarballs stored here (gitignored)
 │
+├── DEVELOPER-GUIDE.md            # AI agent integration guide for developers
 ├── TESTING.md                    # Comprehensive testing guide
 └── USER-GUIDE.md                 # This file
 ```
