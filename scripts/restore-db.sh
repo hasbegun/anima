@@ -14,7 +14,7 @@ if [ -z "${1:-}" ]; then
 fi
 
 BACKUP_FILE="$1"
-CONTAINER="auth-thunderid-1"
+CONTAINER="aegis-id-thunderid-1"
 
 if [ ! -f "$BACKUP_FILE" ]; then
     echo "ERROR: $BACKUP_FILE not found"
@@ -22,7 +22,7 @@ if [ ! -f "$BACKUP_FILE" ]; then
 fi
 
 # Verify backup contents
-echo "=== ThunderID Restore ==="
+echo "=== Aegis ID Restore ==="
 echo "  Backup: $BACKUP_FILE"
 echo "  Contents:"
 tar -tzf "$BACKUP_FILE" | head -20
@@ -42,16 +42,16 @@ tar -xzf "$BACKUP_FILE" -C "$TMPDIR"
 
 # Stop ThunderID (use docker directly to avoid dependency cascade)
 echo "  Stopping ThunderID..."
-docker stop auth-thunderid-1 2>/dev/null || true
+docker stop aegis-id-thunderid-1 2>/dev/null || true
 
 # Restore files using a temporary helper container that mounts the same
 # volumes. This avoids permission issues: we copy files in, fix ownership,
 # and clean up WAL files — all before ThunderID starts.
 echo "  Restoring databases, certs, and secrets..."
 docker run --rm \
-    -v auth_thunderid-db:/opt/thunderid/database \
-    -v auth_thunderid-certs:/opt/thunderid/config/certs \
-    -v auth_thunderid-secrets:/opt/thunderid/config/secrets \
+    -v aegis-id_thunderid-db:/opt/thunderid/database \
+    -v aegis-id_thunderid-certs:/opt/thunderid/config/certs \
+    -v aegis-id_thunderid-secrets:/opt/thunderid/config/secrets \
     -v "$TMPDIR:/restore:ro" \
     alpine:3 sh -c '
         # Restore databases
@@ -81,7 +81,7 @@ docker run --rm \
 
 # Start ThunderID
 echo "  Starting ThunderID..."
-docker start auth-thunderid-1
+docker start aegis-id-thunderid-1
 
 # Wait for healthy
 echo "  Waiting for healthy..."

@@ -1,3 +1,5 @@
+name: aegis-id
+
 services:
   mailslurper:
     image: oryd/mailslurper:latest-smtps

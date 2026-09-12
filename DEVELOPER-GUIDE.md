@@ -1,6 +1,6 @@
-# AI Agent Integration Guide
+# Aegis ID — AI Agent Integration Guide
 
-How to wire your AI agent into the ThunderID identity service so it can authenticate, get tokens, and call protected APIs.
+How to wire your AI agent into Aegis ID so it can authenticate, get tokens, and call protected APIs. Aegis ID uses ThunderID as its underlying identity provider.
 
 ## Table of Contents
 

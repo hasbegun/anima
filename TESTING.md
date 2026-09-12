@@ -1,6 +1,6 @@
-# Testing Guide
+# Aegis ID — Testing Guide
 
-Comprehensive testing guide for the Identity Service built on ThunderID.
+Comprehensive testing guide for Aegis ID, built on ThunderID.
 
 **Total tests:** 83 across 7 phases, covering infrastructure, bootstrap, agent identity, token flows, tenant server integration, operations, and security.
 

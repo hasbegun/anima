@@ -1,5 +1,5 @@
 #!/bin/bash
-# Identity Service - Full Test Suite
+# Aegis ID - Full Test Suite
 # Runs all phase test scripts in order.
 set -euo pipefail
 
@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILURES=0
 
 echo "========================================="
-echo "  Identity Service — Full Test Suite"
+echo "  Aegis ID — Full Test Suite"
 echo "========================================="
 
 run_phase() {
