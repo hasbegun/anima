@@ -1,6 +1,6 @@
-# Aegis ID — User Guide
+# Sigil — User Guide
 
-Aegis ID is a centralized identity and authorization gateway for internal servers, built on **ThunderID**. Provides shared authentication for humans and AI agents with per-tenant RBAC, OAuth2/OIDC token issuance, and offline JWT verification.
+Sigil is a centralized identity and authorization gateway for internal servers, built on **ThunderID**. Provides shared authentication for humans and AI agents with per-tenant RBAC, OAuth2/OIDC token issuance, and offline JWT verification.
 
 ---
 
@@ -99,7 +99,7 @@ As AI agents become more autonomous — making decisions, triggering deployments
 
 ### The Solution: First-Class Agent Identity
 
-Aegis ID treats AI agents as **first-class citizens** in the same identity system as humans. Every agent gets:
+Sigil treats AI agents as **first-class citizens** in the same identity system as humans. Every agent gets:
 
 - Its own **unique ID** — not a repurposed user account
 - Its own **OAuth2 credentials** — standard `client_id` + `client_secret`, managed by the identity provider
@@ -569,7 +569,7 @@ make status
 
 ```text
 NAME                     IMAGE                                  STATUS
-aegis-id-thunderid-1     ghcr.io/thunder-id/thunderid:1.0.1     Up 2 minutes (healthy)
+sigil-thunderid-1     ghcr.io/thunder-id/thunderid:1.0.1     Up 2 minutes (healthy)
 auth-mailslurper-1       oryd/mailslurper:latest-smtps           Up 2 minutes
 
 ThunderID is healthy
@@ -1826,7 +1826,7 @@ Before upgrading, check the ThunderID release notes for:
 
 ```bash
 # Check the current version
-docker inspect aegis-id-thunderid-1 --format '{{.Config.Image}}'
+docker inspect sigil-thunderid-1 --format '{{.Config.Image}}'
 # → ghcr.io/thunder-id/thunderid:1.0.1
 ```
 
@@ -2025,7 +2025,7 @@ ADMIN_PASSWORD=<pw> make test
 ## Project Structure
 
 ```text
-aegis_id/
+sigil/
 ├── .env                          # Secrets (gitignored)
 ├── .env.example                  # Environment template
 ├── .gitignore                    # Security: excludes secrets

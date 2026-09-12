@@ -9,11 +9,11 @@ set -euo pipefail
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/thunderid_${TIMESTAMP}.tar.gz"
-CONTAINER="aegis-id-thunderid-1"
+CONTAINER="sigil-thunderid-1"
 
 mkdir -p "$BACKUP_DIR"
 
-echo "=== Aegis ID Backup ==="
+echo "=== Sigil Backup ==="
 
 # Verify ThunderID is running
 if ! docker inspect "$CONTAINER" --format '{{.State.Running}}' 2>/dev/null | grep -q true; then

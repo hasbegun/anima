@@ -1,4 +1,4 @@
-name: aegis-id
+name: sigil
 
 services:
   mailslurper:

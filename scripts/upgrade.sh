@@ -23,7 +23,7 @@ cd "$PROJECT_DIR"
 COMPOSE_FILE="docker-compose.yml"
 TEST_SCRIPT="scripts/test-phase7.sh"
 IMAGE_BASE="ghcr.io/thunder-id/thunderid"
-CONTAINER="aegis-id-thunderid-1"
+CONTAINER="sigil-thunderid-1"
 ROLLBACK_STATE_FILE=".upgrade-rollback-state"
 
 # ──────────────────────────────────────────────

@@ -1,6 +1,6 @@
-# Aegis ID — AI Agent Integration Guide
+# Sigil — AI Agent Integration Guide
 
-How to wire your AI agent into Aegis ID so it can authenticate, get tokens, and call protected APIs. Aegis ID uses ThunderID as its underlying identity provider.
+How to wire your AI agent into Sigil so it can authenticate, get tokens, and call protected APIs. Sigil uses ThunderID as its underlying identity provider.
 
 ## Table of Contents
 
