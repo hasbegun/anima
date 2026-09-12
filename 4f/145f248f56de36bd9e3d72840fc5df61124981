@@ -1,0 +1,43 @@
+scripts/backup-db.sh
+  a3914e1e29abc6d5 12,16
+scripts/upgrade.sh
+  a3914e1e29abc6d5 26
+USER-GUIDE.md
+  a3914e1e29abc6d5 1,3,102,572,1829
+scripts/test-all.sh
+  a3914e1e29abc6d5 2,10
+DEVELOPER-GUIDE.md
+  a3914e1e29abc6d5 1,3
+master-plan.md
+  a3914e1e29abc6d5 1,3
+docker-compose.yml
+  a3914e1e29abc6d5 1-2
+scripts/test-phase6.sh
+  a3914e1e29abc6d5 224
+Makefile
+  a3914e1e29abc6d5 14,122,146
+scripts/restore-db.sh
+  a3914e1e29abc6d5 17,25,45,52-54,84
+TESTING.md
+  a3914e1e29abc6d5 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "4f145f248f56de36bd9e3d72840fc5df61124981",
+  "prompts": {
+    "a3914e1e29abc6d5": {
+      "agent_id": {
+        "tool": "windsurf",
+        "id": "verdant-antimatter",
+        "model": "unknown"
+      },
+      "human_author": "Inho Choi",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 27,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    }
+  }
+}
