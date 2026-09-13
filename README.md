@@ -96,7 +96,6 @@ anima/
 │   ├── backup-db.sh            # WAL-safe SQLite hot backup
 │   ├── restore-db.sh           # Restore from backup tarball
 │   └── upgrade.sh              # Automated ThunderID upgrades
-├── master-plan.md              # Full design document
 ├── USER-GUIDE.md               # Setup and operations guide
 ├── DEVELOPER-GUIDE.md          # AI agent integration guide
 └── TESTING.md                  # Test suite documentation
@@ -178,7 +177,6 @@ See [DEVELOPER-GUIDE.md](DEVELOPER-GUIDE.md) for the full integration walkthroug
 
 ## Documentation
 
-- [master-plan.md](master-plan.md) - Full architecture and design
 - [USER-GUIDE.md](USER-GUIDE.md) - Setup, operations, and configuration reference
 - [DEVELOPER-GUIDE.md](DEVELOPER-GUIDE.md) - AI agent integration guide
 - [TESTING.md](TESTING.md) - Test suite documentation (83 tests, 7 phases)
