@@ -11,7 +11,7 @@ setup:
 	docker compose up thunderid-setup 2>&1 | tee setup-output.txt
 	docker compose up -d thunderid mailslurper
 	@echo "Waiting for ThunderID to be healthy..."
-	@until docker inspect sigil-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; do \
+	@until docker inspect anima-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; do \
 		sleep 3; echo "  waiting..."; \
 	done
 	@echo ""
@@ -119,7 +119,7 @@ logs-all:
 status:
 	docker compose ps
 	@echo ""
-	@docker inspect sigil-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null \
+	@docker inspect anima-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null \
 		| grep -q healthy \
 		&& echo "ThunderID is healthy" \
 		|| echo "ThunderID is not responding"
@@ -143,5 +143,5 @@ clean:
 # ──────────────────────────────────────────────
 all: setup build-toolbox bootstrap seed
 	@echo ""
-	@echo "Sigil is ready!"
+	@echo "Anima is ready!"
 	@echo "  Run tests: ADMIN_PASSWORD=<pw> make test"

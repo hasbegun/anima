@@ -1,6 +1,6 @@
-# Sigil — Testing Guide
+# Anima — Testing Guide
 
-Comprehensive testing guide for Sigil, built on ThunderID.
+Comprehensive testing guide for Anima, built on ThunderID.
 
 **Total tests:** 83 across 7 phases, covering infrastructure, bootstrap, agent identity, token flows, tenant server integration, operations, and security.
 

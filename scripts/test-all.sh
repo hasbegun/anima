@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sigil - Full Test Suite
+# Anima - Full Test Suite
 # Runs all phase test scripts in order.
 set -euo pipefail
 
@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILURES=0
 
 echo "========================================="
-echo "  Sigil — Full Test Suite"
+echo "  Anima — Full Test Suite"
 echo "========================================="
 
 run_phase() {

@@ -221,7 +221,7 @@ run_test "6.9  Backup/restore round-trip preserves data" \
 
         # Verify ThunderID is healthy
         for i in \$(seq 1 20); do
-            status=\$(docker inspect sigil-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null)
+            status=\$(docker inspect anima-thunderid-1 --format '{{.State.Health.Status}}' 2>/dev/null)
             [ \"\$status\" = 'healthy' ] && break
             sleep 5
         done

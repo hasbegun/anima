@@ -14,7 +14,7 @@ if [ -z "${1:-}" ]; then
 fi
 
 BACKUP_FILE="$1"
-CONTAINER="sigil-thunderid-1"
+CONTAINER="anima-thunderid-1"
 
 if [ ! -f "$BACKUP_FILE" ]; then
     echo "ERROR: $BACKUP_FILE not found"
@@ -22,7 +22,7 @@ if [ ! -f "$BACKUP_FILE" ]; then
 fi
 
 # Verify backup contents
-echo "=== Sigil Restore ==="
+echo "=== Anima Restore ==="
 echo "  Backup: $BACKUP_FILE"
 echo "  Contents:"
 tar -tzf "$BACKUP_FILE" | head -20
@@ -42,16 +42,16 @@ tar -xzf "$BACKUP_FILE" -C "$TMPDIR"
 
 # Stop ThunderID (use docker directly to avoid dependency cascade)
 echo "  Stopping ThunderID..."
-docker stop sigil-thunderid-1 2>/dev/null || true
+docker stop anima-thunderid-1 2>/dev/null || true
 
 # Restore files using a temporary helper container that mounts the same
 # volumes. This avoids permission issues: we copy files in, fix ownership,
 # and clean up WAL files — all before ThunderID starts.
 echo "  Restoring databases, certs, and secrets..."
 docker run --rm \
-    -v sigil_thunderid-db:/opt/thunderid/database \
-    -v sigil_thunderid-certs:/opt/thunderid/config/certs \
-    -v sigil_thunderid-secrets:/opt/thunderid/config/secrets \
+    -v anima_thunderid-db:/opt/thunderid/database \
+    -v anima_thunderid-certs:/opt/thunderid/config/certs \
+    -v anima_thunderid-secrets:/opt/thunderid/config/secrets \
     -v "$TMPDIR:/restore:ro" \
     alpine:3 sh -c '
         # Restore databases
@@ -81,7 +81,7 @@ docker run --rm \
 
 # Start ThunderID
 echo "  Starting ThunderID..."
-docker start sigil-thunderid-1
+docker start anima-thunderid-1
 
 # Wait for healthy
 echo "  Waiting for healthy..."
